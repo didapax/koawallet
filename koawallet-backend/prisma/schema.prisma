@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           Int           @id @default(autoincrement())
+  email        String        @unique
+  password     String
+  fiatBalance  Float         @default(0.0) // Saldo en Dinero Real
+  cacaoTokens  Float         @default(0.0) // Saldo en Tokens de Cacao
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+}
+
+model Transaction {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  type      String   // "BUY" (Fiat a Cacao) o "SELL" (Cacao a Fiat)
+  amount    Float    // Cantidad de tokens
+  priceAt   Float    // Precio del cacao al momento de la transacción
+  createdAt DateTime @default(now())
+}
