@@ -6,22 +6,61 @@ datasource db {
   provider = "postgresql"
 }
 
+
 model User {
   id           Int           @id @default(autoincrement())
   email        String        @unique
   password     String
-  fiatBalance  Float         @default(0.0) // Saldo en Dinero Real
-  cacaoTokens  Float         @default(0.0) // Saldo en Tokens de Cacao
+  name         String?
+  phone        String?
+  cedula       String?
+  fiatBalance  Float         @default(0.0)
+  cacaoBalance Float         @default(0.0)
+  // Datos bancarios personales del usuario
+  bankCountry  String?
+  bankName     String?
+  bankAccount  String?
+  bankHolder   String?
+  bankType     String?       // "corriente" | "ahorro"
   transactions Transaction[]
   createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model BankOption {
+  id            Int           @id @default(autoincrement())
+  country       String
+  bankName      String
+  accountHolder String
+  accountNumber String
+  accountType   String?
+  notes         String?
+  isActive      Boolean       @default(true)
+  transactions  Transaction[]
+  createdAt     DateTime      @default(now())
+}
+
+model PaymentMethod {
+  id          Int    @id @default(autoincrement())
+  code        String @unique // "BANK" | "OFFICE"
+  label       String
+  description String?
+  isActive    Boolean @default(true)
 }
 
 model Transaction {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
-  type      String   // "BUY" (Fiat a Cacao) o "SELL" (Cacao a Fiat)
-  amount    Float    // Cantidad de tokens
-  priceAt   Float    // Precio del cacao al momento de la transacción
-  createdAt DateTime @default(now())
+  id           Int         @id @default(autoincrement())
+  userId       Int
+  user         User        @relation(fields: [userId], references: [id])
+  type         String      // "DEPOSIT_CACAO" | "DEPOSIT_USD" | "WITHDRAW_CACAO" | "WITHDRAW_USD" | "CONVERT_CACAO_TO_USD" | "CONVERT_USD_TO_CACAO"
+  amount       Float       // Cantidad principal (gramos de cacao o USD según tipo)
+  amountUSD    Float?      // Equivalente en USD (para conversiones/depósitos)
+  amountCacao  Float?      // Equivalente en cacao (para conversiones/depósitos)
+  priceAt      Float?      // Precio del cacao al momento (USD/g)
+  method       String?     // "BANK" | "OFFICE"
+  bankOptionId Int?
+  bankOption   BankOption? @relation(fields: [bankOptionId], references: [id])
+  status       String      @default("PENDING") // "PENDING" | "COMPLETED" | "REJECTED"
+  notes        String?
+  createdAt    DateTime    @default(now())
 }
