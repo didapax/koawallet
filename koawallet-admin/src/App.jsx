@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import UserManagement from './pages/UserManagement';
+import Configuration from './pages/Configuration';
 import './index.css';
 
 import { hasPermission } from './utils/permissions';
@@ -65,6 +66,12 @@ function App() {
         <Route path="/users" element={
           <ProtectedRoute isAuthenticated={isAuthenticated} role={userRole} path="/users">
             <UserManagement />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/config" element={
+          <ProtectedRoute isAuthenticated={isAuthenticated} role={userRole} path="/config">
+            <Configuration />
           </ProtectedRoute>
         } />
 

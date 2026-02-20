@@ -66,3 +66,13 @@ model Transaction {
   notes        String?
   createdAt    DateTime    @default(now())
 }
+
+model SystemConfig {
+  id                  Int      @id @default(1)
+  buyPrice            Float    @default(3.50)  // Precio al que compramos cacao (USD/g)
+  sellPrice           Float    @default(4.00)  // Precio al que vendemos cacao (USD/g)
+  maintenanceFee      Float    @default(1.00)  // Tasa de mantenimiento mensual (USD)
+  networkFee          Float    @default(0.10)  // Tasa de uso de red por transacción (USD)
+  lastZilaPrice       Float?                   // Último precio de referencia de Zila Labs
+  updatedAt           DateTime @updatedAt
+}

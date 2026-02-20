@@ -13,10 +13,25 @@ app.use(express.json());
 const JWT_SECRET = process.env.JWT_SECRET || 'koawallet_secret_2026';
 
 // ─── Precio del cacao ─────────────────────────────────────────────────────────
-async function getCacaoPrice() {
-  // Precio fijo por gramo (USD) hasta configurar API real
-  const fixed = parseFloat(process.env.CACAO_PRICE_FIXED || '3.50');
-  return fixed;
+async function getSystemConfig() {
+  try {
+    let config = await prisma.systemConfig.findUnique({ where: { id: 1 } });
+    if (!config) {
+      // Fallback if not initialized
+      config = await prisma.systemConfig.create({
+        data: { id: 1, buyPrice: 3.5, sellPrice: 4.0, maintenanceFee: 1.0, networkFee: 0.1 }
+      });
+    }
+    return config;
+  } catch (err) {
+    console.error("Error al obtener SystemConfig:", err.message);
+    return { buyPrice: 3.5, sellPrice: 4.0, maintenanceFee: 1.0, networkFee: 0.1 };
+  }
+}
+
+async function getCacaoPrice(type = 'buy') {
+  const config = await getSystemConfig();
+  return type === 'sell' ? config.sellPrice : config.buyPrice;
 }
 
 // ─── Middleware Auth ───────────────────────────────────────────────────────────
@@ -130,12 +145,13 @@ app.get('/balance', authMiddleware, async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    const price = await getCacaoPrice();
+    const config = await getSystemConfig();
     res.json({
       fiat: user.fiatBalance,
       cacao: user.cacaoBalance,
-      cacaoPricePerGram: price,
-      cacaoValueInUSD: parseFloat((user.cacaoBalance * price).toFixed(2))
+      cacaoPricePerGram: config.buyPrice, // Usamos precio de compra como referencia general
+      cacaoValueInUSD: parseFloat((user.cacaoBalance * config.buyPrice).toFixed(2)),
+      networkFee: config.networkFee
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -149,7 +165,8 @@ app.post('/deposit', authMiddleware, async (req, res) => {
     // type: "DEPOSIT_CACAO" | "DEPOSIT_USD"
     if (!type || !amount || amount <= 0) return res.status(400).json({ error: 'Datos inválidos' });
 
-    const price = await getCacaoPrice();
+    const config = await getSystemConfig();
+    const price = await getCacaoPrice(type === 'DEPOSIT_CACAO' ? 'buy' : 'sell');
     let dataUpdate = {};
     let txData = {
       type,
@@ -162,6 +179,7 @@ app.post('/deposit', authMiddleware, async (req, res) => {
     };
 
     if (type === 'DEPOSIT_USD') {
+      // Al depositar USD, podríamos restar una tasa de red si aplica, pero usualmente es en retiros/conversiones
       dataUpdate = { fiatBalance: { increment: parseFloat(amount) } };
       txData.amountUSD = parseFloat(amount);
     } else if (type === 'DEPOSIT_CACAO') {
@@ -196,12 +214,17 @@ app.post('/withdraw', authMiddleware, async (req, res) => {
     const { type, amount, method, bankOptionId, notes } = req.body;
     if (!type || !amount || amount <= 0) return res.status(400).json({ error: 'Datos inválidos' });
 
-    const price = await getCacaoPrice();
+    const config = await getSystemConfig();
+    const price = await getCacaoPrice(type === 'WITHDRAW_CACAO' ? 'sell' : 'buy');
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
 
+    // Aplicar tasa de red al retiro en USD
+    const networkFee = config.networkFee;
+    const totalToDebitUSD = type === 'WITHDRAW_USD' ? parseFloat(amount) + networkFee : 0;
+
     // Validar saldo suficiente
-    if (type === 'WITHDRAW_USD' && user.fiatBalance < amount) {
-      return res.status(400).json({ error: 'Saldo USD insuficiente' });
+    if (type === 'WITHDRAW_USD' && user.fiatBalance < totalToDebitUSD) {
+      return res.status(400).json({ error: `Saldo USD insuficiente (requiere ${totalToDebitUSD} incl. tasa)` });
     }
     if (type === 'WITHDRAW_CACAO' && user.cacaoBalance < amount) {
       return res.status(400).json({ error: 'Saldo de cacao insuficiente' });
@@ -214,12 +237,12 @@ app.post('/withdraw', authMiddleware, async (req, res) => {
       priceAt: price,
       method: method || null,
       bankOptionId: bankOptionId ? parseInt(bankOptionId) : null,
-      notes: notes || null,
+      notes: notes || (type === 'WITHDRAW_USD' ? `Tasa de red: ${networkFee} USD` : null),
       status: 'PENDING',
     };
 
     if (type === 'WITHDRAW_USD') {
-      dataUpdate = { fiatBalance: { decrement: parseFloat(amount) } };
+      dataUpdate = { fiatBalance: { decrement: totalToDebitUSD } };
       txData.amountUSD = parseFloat(amount);
     } else if (type === 'WITHDRAW_CACAO') {
       dataUpdate = { cacaoBalance: { decrement: parseFloat(amount) } };
@@ -254,28 +277,34 @@ app.post('/convert', authMiddleware, async (req, res) => {
     // type: "CONVERT_CACAO_TO_USD" | "CONVERT_USD_TO_CACAO"
     if (!type || !amount || amount <= 0) return res.status(400).json({ error: 'Datos inválidos' });
 
-    const price = await getCacaoPrice();
+    const config = await getSystemConfig();
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
 
     let dataUpdate = {};
-    let txData = { type, amount: parseFloat(amount), priceAt: price, status: 'COMPLETED' };
+    let txData = { type, amount: parseFloat(amount), status: 'COMPLETED' };
 
     if (type === 'CONVERT_CACAO_TO_USD') {
+      // El usuario nos vende cacao: usamos buyPrice
+      const price = config.buyPrice;
       if (user.cacaoBalance < amount) return res.status(400).json({ error: 'Gramos de cacao insuficientes' });
       const usd = parseFloat((amount * price).toFixed(2));
       dataUpdate = {
         cacaoBalance: { decrement: parseFloat(amount) },
         fiatBalance: { increment: usd }
       };
+      txData.priceAt = price;
       txData.amountCacao = parseFloat(amount);
       txData.amountUSD = usd;
     } else if (type === 'CONVERT_USD_TO_CACAO') {
+      // El usuario nos compra cacao: usamos sellPrice
+      const price = config.sellPrice;
       if (user.fiatBalance < amount) return res.status(400).json({ error: 'Saldo USD insuficiente' });
       const cacao = parseFloat((amount / price).toFixed(4));
       dataUpdate = {
         fiatBalance: { decrement: parseFloat(amount) },
         cacaoBalance: { increment: cacao }
       };
+      txData.priceAt = price;
       txData.amountUSD = parseFloat(amount);
       txData.amountCacao = cacao;
     } else {
@@ -388,8 +417,55 @@ app.get('/transactions', authMiddleware, async (req, res) => {
 // ─── PRECIO CACAO ──────────────────────────────────────────────────────────────
 app.get('/cacao-price', async (req, res) => {
   try {
-    const price = await getCacaoPrice();
-    res.json({ pricePerGram: price, currency: 'USD' });
+    const config = await getSystemConfig();
+    res.json({
+      buyPrice: config.buyPrice,
+      sellPrice: config.sellPrice,
+      currency: 'USD'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── SYSTEM CONFIG (ADMIN) ─────────────────────────────────────────────────────
+const getZilaPrice = require('./precioCacao');
+
+app.get('/admin/config', adminMiddleware, async (req, res) => {
+  try {
+    const config = await getSystemConfig();
+    const zilaPrice = await getZilaPrice();
+
+    // Opcional: actualizar lastZilaPrice en la DB
+    if (zilaPrice) {
+      await prisma.systemConfig.update({
+        where: { id: 1 },
+        data: { lastZilaPrice: parseFloat(zilaPrice) }
+      });
+    }
+
+    res.json({
+      ...config,
+      currentZilaPrice: zilaPrice || config.lastZilaPrice
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/admin/config', adminMiddleware, async (req, res) => {
+  try {
+    const { buyPrice, sellPrice, maintenanceFee, networkFee } = req.body;
+    const updated = await prisma.systemConfig.update({
+      where: { id: 1 },
+      data: {
+        buyPrice: buyPrice !== undefined ? parseFloat(buyPrice) : undefined,
+        sellPrice: sellPrice !== undefined ? parseFloat(sellPrice) : undefined,
+        maintenanceFee: maintenanceFee !== undefined ? parseFloat(maintenanceFee) : undefined,
+        networkFee: networkFee !== undefined ? parseFloat(networkFee) : undefined,
+      }
+    });
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

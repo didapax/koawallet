@@ -4,7 +4,7 @@
  */
 export const ROLE_PERMISSIONS = {
     admin: {
-        allowedPaths: ['*', '/'], // Admin can access everything
+        allowedPaths: ['*', '/', '/users', '/config'], // Admin can access everything
         restrictedActions: []
     },
     oficinista: {

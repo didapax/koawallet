@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion as Motion } from 'framer-motion';
-import { Users, LayoutDashboard, LogOut, TrendingUp, Wallet, ArrowRight } from 'lucide-react';
+import { Users, LayoutDashboard, LogOut, TrendingUp, Wallet, ArrowRight, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Dashboard = ({ onLogout }) => {
@@ -34,6 +34,15 @@ const Dashboard = ({ onLogout }) => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
                                 <Users size={20} />
                                 <span style={{ fontWeight: 500 }}>Usuarios</span>
+                            </div>
+                        </Link>
+                    )}
+
+                    {userRole === 'admin' && (
+                        <Link to="/config" style={{ textDecoration: 'none', color: 'inherit' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
+                                <Settings size={20} />
+                                <span style={{ fontWeight: 500 }}>Configuración</span>
                             </div>
                         </Link>
                     )}
