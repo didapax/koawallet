@@ -1,4 +1,5 @@
 const prisma = require('./db');
+const bcrypt = require('bcrypt');
 
 async function main() {
     console.log('🌱 Iniciando seed de KoaWallet...');
@@ -101,6 +102,24 @@ async function main() {
     }
 
     console.log(`✅ ${banks.length} bancos creados`);
+
+    // Usuario Admin por defecto
+    const hashedPassword = await bcrypt.hash('admin', 10);
+    await prisma.user.upsert({
+        where: { email: 'admin' },
+        update: {
+            password: hashedPassword
+        },
+        create: {
+            email: 'admin',
+            password: hashedPassword,
+            name: 'Administrador',
+            role: 'admin',
+            status: 'active'
+        }
+    });
+
+    console.log('✅ Usuario admin creado (admin/admin)');
     console.log('🎉 Seed completado exitosamente!');
 }
 

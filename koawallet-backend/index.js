@@ -33,6 +33,24 @@ function authMiddleware(req, res, next) {
   }
 }
 
+async function adminMiddleware(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header) return res.status(401).json({ error: 'Token requerido' });
+  try {
+    const token = header.replace('Bearer ', '');
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ error: 'Acceso denegado: Se requiere rol de administrador' });
+    }
+    req.userId = decoded.userId;
+    req.user = user;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Token inválido' });
+  }
+}
+
 // ─── AUTH ──────────────────────────────────────────────────────────────────────
 app.post('/auth/register', async (req, res) => {
   try {
@@ -342,6 +360,54 @@ app.get('/cacao-price', async (req, res) => {
   try {
     const price = await getCacaoPrice();
     res.json({ pricePerGram: price, currency: 'USD' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── ADMIN OPERATIONS ──────────────────────────────────────────────────────────
+app.get('/admin/users', adminMiddleware, async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true, email: true, name: true, phone: true, cedula: true,
+        role: true, status: true, fiatBalance: true, cacaoBalance: true,
+        createdAt: true
+      }
+    });
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/admin/users', adminMiddleware, async (req, res) => {
+  try {
+    const { email, password, name, role } = req.body;
+    const hashed = await bcrypt.hash(password, 10);
+    const user = await prisma.user.create({
+      data: { email, password: hashed, name, role: role || 'user' }
+    });
+    res.status(201).json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/admin/users/:id', adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, phone, cedula, role, status, fiatBalance, cacaoBalance } = req.body;
+    const updated = await prisma.user.update({
+      where: { id: parseInt(id) },
+      data: {
+        name, phone, cedula, role, status,
+        fiatBalance: fiatBalance !== undefined ? parseFloat(fiatBalance) : undefined,
+        cacaoBalance: cacaoBalance !== undefined ? parseFloat(cacaoBalance) : undefined
+      }
+    });
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
