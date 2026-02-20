@@ -1,5 +1,5 @@
 // Constantes de la aplicación KoaWallet
-export const API_BASE_URL = 'http://192.168.1.100:3000'; // Cambia por tu IP local
+export const API_BASE_URL = 'http://192.168.2.109:3000'; // Cambia por tu IP local
 
 export const Colors = {
     // Fondos
