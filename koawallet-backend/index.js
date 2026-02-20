@@ -40,8 +40,9 @@ async function adminMiddleware(req, res, next) {
     const token = header.replace('Bearer ', '');
     const decoded = jwt.verify(token, JWT_SECRET);
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
-    if (!user || user.role !== 'admin') {
-      return res.status(403).json({ error: 'Acceso denegado: Se requiere rol de administrador' });
+    const staffRoles = ['admin', 'cajero', 'oficinista'];
+    if (!user || !staffRoles.includes(user.role)) {
+      return res.status(403).json({ error: 'Acceso denegado: Se requiere rol administrativo' });
     }
     req.userId = decoded.userId;
     req.user = user;
@@ -81,14 +82,43 @@ app.post('/auth/login', async (req, res) => {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return res.status(401).json({ error: 'Credenciales inválidas' });
 
+    if (user.status === 'blocked') {
+      return res.status(403).json({ error: 'Tu cuenta ha sido bloqueada. Contacta al administrador.' });
+    }
+
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Credenciales inválidas' });
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
     res.json({
       token,
-      user: { id: user.id, email: user.email, name: user.name }
+      user: { id: user.id, email: user.email, name: user.name, role: user.role }
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/auth/change-password', authMiddleware, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Se requiere contraseña actual y nueva' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: req.userId },
+      data: { password: hashed }
+    });
+
+    res.json({ message: 'Contraseña actualizada exitosamente' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -399,6 +429,15 @@ app.put('/admin/users/:id', adminMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, phone, cedula, role, status, fiatBalance, cacaoBalance } = req.body;
+
+    // Solo el rol 'admin' puede cambiar el estado de un usuario
+    if (status !== undefined && req.user.role !== 'admin') {
+      const existingUser = await prisma.user.findUnique({ where: { id: parseInt(id) } });
+      if (existingUser.status !== status) {
+        return res.status(403).json({ error: 'Acceso denegado: Solo administradores pueden bloquear/desbloquear usuarios' });
+      }
+    }
+
     const updated = await prisma.user.update({
       where: { id: parseInt(id) },
       data: {

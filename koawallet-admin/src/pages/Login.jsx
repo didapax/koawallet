@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { Lock, Mail, Loader2, ShieldCheck } from 'lucide-react';
 import axios from 'axios';
 
@@ -18,9 +18,16 @@ const Login = ({ onLogin }) => {
 
         try {
             const response = await axios.post(`${API_URL}/auth/login`, { email, password });
-            // In a real app we'd check if role is admin here too, 
-            // but the backend will block requests if not admin anyway.
-            onLogin(response.data.token);
+            const user = response.data.user;
+
+            // Strict block for 'user' role in admin panel
+            if (user.role === 'user') {
+                setError('Acceso denegado: El rol de "usuario" no tiene permisos para el panel administrativo.');
+                setLoading(false);
+                return;
+            }
+
+            onLogin(response.data);
         } catch (err) {
             setError(err.response?.data?.error || 'Error al iniciar sesión');
         } finally {
@@ -36,7 +43,7 @@ const Login = ({ onLogin }) => {
             minHeight: '100vh',
             padding: '20px'
         }}>
-            <motion.div
+            <Motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="glass-card"
@@ -129,7 +136,7 @@ const Login = ({ onLogin }) => {
                 <p style={{ marginTop: '30px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                     © 2026 KoaWallet. Acceso restringido.
                 </p>
-            </motion.div>
+            </Motion.div>
         </div>
     );
 };

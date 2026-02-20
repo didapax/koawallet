@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { Users, Search, Plus, Edit2, Shield, Ban, CheckCircle, X, ChevronLeft, Loader2, Save } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
@@ -15,17 +15,27 @@ const UserManagement = () => {
     const [error, setError] = useState('');
 
     const token = localStorage.getItem('admin_token');
+    const userRole = localStorage.getItem('admin_role');
+    const isAdmin = userRole === 'admin';
+    const canCreateUsers = userRole === 'admin'; // Restrict creation to admin only
     const axiosConfig = { headers: { Authorization: `Bearer ${token}` } };
+
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
+    const [passwordLoading, setPasswordLoading] = useState(false);
+    const [passwordError, setPasswordError] = useState('');
+    const [passwordSuccess, setPasswordSuccess] = useState('');
 
     useEffect(() => {
         fetchUsers();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchUsers = async () => {
         try {
             const response = await axios.get(`${API_URL}/admin/users`, axiosConfig);
             setUsers(response.data);
-        } catch (err) {
+        } catch {
             setError('Error al cargar usuarios');
         } finally {
             setLoading(false);
@@ -33,12 +43,45 @@ const UserManagement = () => {
     };
 
     const handleStatusToggle = async (user) => {
+        if (!isAdmin) {
+            alert('Solo el administrador puede bloquear o desbloquear usuarios.');
+            return;
+        }
         const newStatus = user.status === 'active' ? 'blocked' : 'active';
         try {
             await axios.put(`${API_URL}/admin/users/${user.id}`, { ...user, status: newStatus }, axiosConfig);
             fetchUsers();
-        } catch (err) {
+        } catch {
             alert('Error al cambiar estado');
+        }
+    };
+
+    const handleChangePassword = async (e) => {
+        e.preventDefault();
+        setPasswordError('');
+        setPasswordSuccess('');
+
+        if (passwordForm.new !== passwordForm.confirm) {
+            setPasswordError('Las nuevas contraseñas no coinciden');
+            return;
+        }
+
+        setPasswordLoading(true);
+        try {
+            await axios.post(`${API_URL}/auth/change-password`, {
+                currentPassword: passwordForm.current,
+                newPassword: passwordForm.new
+            }, axiosConfig);
+            setPasswordSuccess('Contraseña actualizada con éxito');
+            setTimeout(() => {
+                setShowPasswordModal(false);
+                setPasswordForm({ current: '', new: '', confirm: '' });
+                setPasswordSuccess('');
+            }, 2000);
+        } catch (err) {
+            setPasswordError(err.response?.data?.error || 'Error al cambiar la contraseña');
+        } finally {
+            setPasswordLoading(false);
         }
     };
 
@@ -68,9 +111,16 @@ const UserManagement = () => {
     return (
         <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-dark)' }}>
             {/* Sidebar simplified */}
-            <div className="glass-card" style={{ width: '80px', margin: '20px', padding: '30px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div className="glass-card" style={{ width: '80px', margin: '20px', padding: '30px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
                 <Link to="/" style={{ color: 'var(--text-muted)' }}><LayoutDashboardIcon /></Link>
-                <div style={{ marginTop: '30px', color: 'var(--primary)' }}><Users size={24} /></div>
+                <div style={{ color: 'var(--primary)' }}><Users size={24} /></div>
+                <button
+                    onClick={() => setShowPasswordModal(true)}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', marginTop: 'auto' }}
+                    title="Cambiar Contraseña"
+                >
+                    <LockIcon size={24} />
+                </button>
             </div>
 
             <div style={{ flex: 1, padding: '40px' }}>
@@ -81,9 +131,11 @@ const UserManagement = () => {
                         </Link>
                         <h1>Gestión de <span className="gold-text">Usuarios</span></h1>
                     </div>
-                    <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => { setEditingUser(null); setShowModal(true); }}>
-                        <Plus size={20} /> Nuevo Usuario
-                    </button>
+                    {canCreateUsers && (
+                        <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => { setEditingUser(null); setShowModal(true); }}>
+                            <Plus size={20} /> Nuevo Usuario
+                        </button>
+                    )}
                 </div>
 
                 <div className="glass-card" style={{ padding: '20px', marginBottom: '30px' }}>
@@ -145,14 +197,16 @@ const UserManagement = () => {
                                         <td style={{ padding: '20px', textAlign: 'right' }}>
                                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                                                 <button className="icon-btn" title="Editar" onClick={() => { setEditingUser(user); setShowModal(true); }}><Edit2 size={18} /></button>
-                                                <button
-                                                    className="icon-btn"
-                                                    style={{ color: user.status === 'active' ? 'var(--error)' : 'var(--success)' }}
-                                                    onClick={() => handleStatusToggle(user)}
-                                                    title={user.status === 'active' ? 'Bloquear' : 'Desbloquear'}
-                                                >
-                                                    {user.status === 'active' ? <Ban size={18} /> : <CheckCircle size={18} />}
-                                                </button>
+                                                {isAdmin && (
+                                                    <button
+                                                        className="icon-btn"
+                                                        style={{ color: user.status === 'active' ? 'var(--error)' : 'var(--success)' }}
+                                                        onClick={() => handleStatusToggle(user)}
+                                                        title={user.status === 'active' ? 'Bloquear' : 'Desbloquear'}
+                                                    >
+                                                        {user.status === 'active' ? <Ban size={18} /> : <CheckCircle size={18} />}
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -167,7 +221,7 @@ const UserManagement = () => {
             <AnimatePresence>
                 {showModal && (
                     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px' }}>
-                        <motion.div
+                        <Motion.div
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
@@ -225,7 +279,65 @@ const UserManagement = () => {
                                     <Save size={20} /> Guardar Cambios
                                 </button>
                             </form>
-                        </motion.div>
+                        </Motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Change Password Modal */}
+            <AnimatePresence>
+                {showPasswordModal && (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1100, padding: '20px' }}>
+                        <Motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="glass-card"
+                            style={{ width: '100%', maxWidth: '400px', padding: '40px', position: 'relative' }}
+                        >
+                            <button onClick={() => setShowPasswordModal(false)} style={{ position: 'absolute', right: '20px', top: '20px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                <X size={24} />
+                            </button>
+
+                            <h2 style={{ marginBottom: '30px' }} className="gold-text">Cambiar Contraseña</h2>
+
+                            <form onSubmit={handleChangePassword}>
+                                <div style={{ marginBottom: '15px' }}>
+                                    <label className="label">Contraseña Actual</label>
+                                    <input
+                                        type="password"
+                                        required
+                                        value={passwordForm.current}
+                                        onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
+                                    />
+                                </div>
+                                <div style={{ marginBottom: '15px' }}>
+                                    <label className="label">Nueva Contraseña</label>
+                                    <input
+                                        type="password"
+                                        required
+                                        value={passwordForm.new}
+                                        onChange={(e) => setPasswordForm({ ...passwordForm, new: e.target.value })}
+                                    />
+                                </div>
+                                <div style={{ marginBottom: '25px' }}>
+                                    <label className="label">Confirmar Nueva Contraseña</label>
+                                    <input
+                                        type="password"
+                                        required
+                                        value={passwordForm.confirm}
+                                        onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
+                                    />
+                                </div>
+
+                                {passwordError && <div style={{ color: 'var(--error)', marginBottom: '20px', textAlign: 'center' }}>{passwordError}</div>}
+                                {passwordSuccess && <div style={{ color: 'var(--success)', marginBottom: '20px', textAlign: 'center' }}>{passwordSuccess}</div>}
+
+                                <button type="submit" className="btn-primary" style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }} disabled={passwordLoading}>
+                                    {passwordLoading ? <Loader2 className="animate-spin" size={20} /> : <><Save size={20} /> Actualizar Clave</>}
+                                </button>
+                            </form>
+                        </Motion.div>
                     </div>
                 )}
             </AnimatePresence>
@@ -259,6 +371,10 @@ const UserManagement = () => {
 
 const LayoutDashboardIcon = () => (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+);
+
+const LockIcon = ({ size = 24 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
 );
 
 export default UserManagement;

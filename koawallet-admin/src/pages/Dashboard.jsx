@@ -1,9 +1,12 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { Users, LayoutDashboard, LogOut, TrendingUp, Wallet, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Dashboard = ({ onLogout }) => {
+    const userRole = localStorage.getItem('admin_role') || 'user';
+    const canViewUsers = userRole === 'admin' || userRole === 'oficinista';
+
     return (
         <div style={{ display: 'flex', minHeight: '100vh' }}>
             {/* Sidebar */}
@@ -26,12 +29,14 @@ const Dashboard = ({ onLogout }) => {
                         <span style={{ fontWeight: 500 }}>Dashboard</span>
                     </div>
 
-                    <Link to="/users" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
-                            <Users size={20} />
-                            <span style={{ fontWeight: 500 }}>Usuarios</span>
-                        </div>
-                    </Link>
+                    {canViewUsers && (
+                        <Link to="/users" style={{ textDecoration: 'none', color: 'inherit' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
+                                <Users size={20} />
+                                <span style={{ fontWeight: 500 }}>Usuarios</span>
+                            </div>
+                        </Link>
+                    )}
                 </nav>
 
                 <button
@@ -59,7 +64,7 @@ const Dashboard = ({ onLogout }) => {
             <div style={{ flex: 1, padding: '40px' }}>
                 <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                     <div>
-                        <h1 style={{ fontSize: '2rem' }}>Bienvenido, <span className="gold-text">Admin</span></h1>
+                        <h1 style={{ fontSize: '2rem' }}>Bienvenido, <span className="gold-text" style={{ textTransform: 'capitalize' }}>{userRole}</span></h1>
                         <p style={{ color: 'var(--text-muted)' }}>Vista general de las operaciones de KoaWallet</p>
                     </div>
                 </header>
@@ -97,7 +102,7 @@ const Dashboard = ({ onLogout }) => {
 };
 
 const StatCard = ({ title, value, icon, trend }) => (
-    <motion.div whileHover={{ y: -5 }} className="glass-card" style={{ padding: '25px' }}>
+    <Motion.div whileHover={{ y: -5 }} className="glass-card" style={{ padding: '25px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
             <div style={{ padding: '10px', background: 'var(--primary-glow)', borderRadius: '12px', color: 'var(--primary)' }}>
                 {icon}
@@ -106,7 +111,7 @@ const StatCard = ({ title, value, icon, trend }) => (
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{title}</p>
         <h3 style={{ fontSize: '1.8rem', margin: '5px 0' }}>{value}</h3>
         <p style={{ fontSize: '0.75rem', color: trend.includes('+') ? 'var(--success)' : 'var(--text-muted)' }}>{trend}</p>
-    </motion.div>
+    </Motion.div>
 );
 
 export default Dashboard;
