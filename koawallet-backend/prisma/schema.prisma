@@ -73,6 +73,7 @@ model SystemConfig {
   sellPrice           Float    @default(4.00)  // Precio al que vendemos cacao (USD/g)
   maintenanceFee      Float    @default(1.00)  // Tasa de mantenimiento mensual (USD)
   networkFee          Float    @default(0.10)  // Tasa de uso de red por transacción (USD)
-  lastZilaPrice       Float?                   // Último precio de referencia de Zila Labs
+  marketTonPrice      Float?                   // Precio de referencia mercado mundial (USD/Ton)
+  lastMarketPrice     Float?                   // Último precio de referencia mercado mundial (USD/g)
   updatedAt           DateTime @updatedAt
 }

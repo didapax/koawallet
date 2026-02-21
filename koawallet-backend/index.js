@@ -15,7 +15,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'koawallet_secret_2026';
 // ─── Precio del cacao ─────────────────────────────────────────────────────────
 async function getSystemConfig() {
   try {
-    let config = await prisma.systemConfig.findUnique({ where: { id: 1 } });
+    let config = await prisma.systemConfig.findFirst({ where: { id: 1 } });
     if (!config) {
       // Fallback if not initialized
       config = await prisma.systemConfig.create({
@@ -429,24 +429,44 @@ app.get('/cacao-price', async (req, res) => {
 });
 
 // ─── SYSTEM CONFIG (ADMIN) ─────────────────────────────────────────────────────
-const getZilaPrice = require('./precioCacao');
+const getGeminiPrice = require('./precioCacao');
 
 app.get('/admin/config', adminMiddleware, async (req, res) => {
   try {
+    const { refresh } = req.query;
     const config = await getSystemConfig();
-    const zilaPrice = await getZilaPrice();
 
-    // Opcional: actualizar lastZilaPrice en la DB
-    if (zilaPrice) {
-      await prisma.systemConfig.update({
-        where: { id: 1 },
-        data: { lastZilaPrice: parseFloat(zilaPrice) }
-      });
+    // Solo consultar Gemini si se solicita explícitamente vía ?refresh=true
+    if (refresh === 'true') {
+      const geminiData = await getGeminiPrice();
+
+      // Actualizar configuración en la DB si recibimos datos de Gemini
+      if (geminiData) {
+        const updated = await prisma.systemConfig.update({
+          where: { id: 1 },
+          data: {
+            marketTonPrice: geminiData.marketPriceTon,
+            lastMarketPrice: geminiData.buyPriceGram,
+            // NOTA: No sobreescribimos buyPrice/sellPrice operativos automáticamente 
+            // a menos que el admin lo decida, pero guardamos la última referencia.
+          }
+        });
+
+        return res.json({
+          ...updated,
+          currentMarketTonPrice: geminiData.marketPriceTon,
+          suggestedBuyPriceGram: geminiData.buyPriceGram,
+          suggestedSellPriceGram: geminiData.sellPriceGram
+        });
+      }
     }
 
+    // Por defecto, solo devolver lo que hay en la DB
     res.json({
       ...config,
-      currentZilaPrice: zilaPrice || config.lastZilaPrice
+      currentMarketTonPrice: config.marketTonPrice,
+      suggestedBuyPriceGram: config.lastMarketPrice,
+      suggestedSellPriceGram: config.lastMarketPrice ? config.lastMarketPrice * 1.15 : 0 // Fallback visual
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

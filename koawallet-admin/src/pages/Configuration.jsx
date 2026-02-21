@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion as Motion } from 'framer-motion';
 import { Settings, Save, RefreshCcw, DollarSign, Activity, Calendar, LayoutDashboard, LogOut, Users, Info } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -15,26 +15,33 @@ const Configuration = () => {
         sellPrice: 0,
         maintenanceFee: 0,
         networkFee: 0,
-        lastZilaPrice: 0,
-        currentZilaPrice: 0
+        marketTonPrice: 0,
+        lastMarketPrice: 0,
+        currentMarketTonPrice: 0,
+        suggestedBuyPriceGram: 0,
+        suggestedSellPriceGram: 0
     });
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
 
-    useEffect(() => {
-        fetchConfig();
-    }, []);
+    const fetchConfig = useCallback(async (refresh = false) => {
+        if (refresh) setRefreshing(true);
+        else setLoading(true);
 
-    const fetchConfig = async () => {
-        setLoading(true);
         try {
-            const response = await fetch(`${API_URL}/admin/config`, {
+            const url = refresh ? `${API_URL}/admin/config?refresh=true` : `${API_URL}/admin/config`;
+            const response = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
                 const data = await response.json();
                 setConfig(data);
+                if (refresh) {
+                    setMessage({ type: 'success', text: 'Datos de mercado actualizados vía Gemini' });
+                    setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+                }
             } else {
                 setMessage({ type: 'error', text: 'Error al cargar la configuración' });
             }
@@ -43,8 +50,13 @@ const Configuration = () => {
             setMessage({ type: 'error', text: 'Error de conexión con el servidor' });
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
-    };
+    }, [token]);
+
+    useEffect(() => {
+        fetchConfig();
+    }, [fetchConfig, token]);
 
     const handleSave = async (e) => {
         e.preventDefault();
@@ -256,45 +268,57 @@ const Configuration = () => {
                             <div style={{ padding: '8px', background: 'var(--primary-glow)', borderRadius: '8px', color: 'var(--primary)' }}>
                                 <Info size={20} />
                             </div>
-                            <h3 style={{ margin: 0 }}>Referencia de Mercado</h3>
+                            <h3 style={{ margin: 0 }}>Referencia Gemini (Experto)</h3>
                         </div>
 
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'center' }}>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '10px' }}>Precio Zila Labs (Mercado Mundial)</p>
-                            <h2 style={{ fontSize: '3rem', margin: '10px 0' }} className="gold-text">
-                                ${config.currentZilaPrice ? config.currentZilaPrice.toFixed(2) : '--.--'}
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '5px' }}>Precio Referencia Mundial</p>
+                            <h2 style={{ fontSize: '2.5rem', margin: '5px 0' }} className="gold-text">
+                                ${config.currentMarketTonPrice ? config.currentMarketTonPrice.toLocaleString() : '--.--'}
                             </h2>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>USD / por gramo</p>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '15px' }}>USD / Tonelada</p>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
+                                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '10px' }}>
+                                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '0 0 5px 0' }}>Sugerido Compra</p>
+                                    <p style={{ fontSize: '1.2rem', margin: 0, fontWeight: 'bold' }}>${config.suggestedBuyPriceGram ? config.suggestedBuyPriceGram.toFixed(4) : '--.--'}</p>
+                                </div>
+                                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '10px' }}>
+                                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '0 0 5px 0' }}>Sugerido Venta</p>
+                                    <p style={{ fontSize: '1.2rem', margin: 0, fontWeight: 'bold' }}>${config.suggestedSellPriceGram ? config.suggestedSellPriceGram.toFixed(4) : '--.--'}</p>
+                                </div>
+                            </div>
 
                             <div style={{
-                                marginTop: '30px',
                                 padding: '15px',
                                 background: 'rgba(212, 175, 55, 0.05)',
                                 borderRadius: '12px',
                                 borderLeft: '4px solid var(--primary)'
                             }}>
-                                <p style={{ fontSize: '0.85rem', textAlign: 'left', margin: 0, color: '#ddd' }}>
-                                    <strong>Nota:</strong> Los precios de Zila Labs son solo referenciales. Debes ajustar tus tasas manuales según la competencia local y los costos operativos.
+                                <p style={{ fontSize: '0.8rem', textAlign: 'left', margin: 0, color: '#ddd' }}>
+                                    <strong>Estrategia Gemini:</strong> Los precios sugeridos incluyen margen de ganancia calculado por IA experta. Puedes usarlos como base para tus tasas operativas.
                                 </p>
                             </div>
 
                             <button
-                                onClick={fetchConfig}
+                                onClick={() => fetchConfig(true)}
+                                disabled={refreshing}
                                 style={{
                                     marginTop: 'auto',
-                                    background: 'transparent',
+                                    background: refreshing ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
                                     border: '1px solid rgba(255, 255, 255, 0.1)',
-                                    color: '#fff',
+                                    color: refreshing ? 'var(--text-muted)' : '#fff',
                                     padding: '10px',
                                     borderRadius: '10px',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     gap: '8px',
-                                    cursor: 'pointer'
+                                    cursor: refreshing ? 'default' : 'pointer'
                                 }}
                             >
-                                <RefreshCcw size={16} /> Actualizar Referencia
+                                <RefreshCcw size={16} className={refreshing ? "spin" : ""} />
+                                {refreshing ? 'Consultando Gemini...' : 'Actualizar Referencia'}
                             </button>
                         </div>
                     </div>
@@ -408,6 +432,9 @@ const Configuration = () => {
                 @keyframes rotation {
                     0% { transform: rotate(0deg); }
                     100% { transform: rotate(360deg); }
+                }
+                .spin {
+                    animation: rotation 1s linear infinite;
                 }
             `}</style>
         </div>
