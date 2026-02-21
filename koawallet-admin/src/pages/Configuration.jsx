@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion as Motion } from 'framer-motion';
-import { Settings, Save, RefreshCcw, DollarSign, Activity, Calendar, LayoutDashboard, LogOut, Users, Info } from 'lucide-react';
+import { Settings, Save, RefreshCcw, DollarSign, Activity, Calendar, LayoutDashboard, LogOut, Users, Info, Wallet } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 const API_URL = 'http://localhost:3000';
