@@ -21,9 +21,16 @@ const Configuration = () => {
         suggestedBuyPriceGram: 0,
         suggestedSellPriceGram: 0
     });
+    const [reserve, setReserve] = useState({
+        totalCacaoStock: 0,
+        tokensIssued: 0,
+        availableStock: 0
+    });
+    const [stockToInject, setStockToInject] = useState('');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [injecting, setInjecting] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
 
     const fetchConfig = useCallback(async (refresh = false) => {
@@ -44,6 +51,15 @@ const Configuration = () => {
                 }
             } else {
                 setMessage({ type: 'error', text: 'Error al cargar la configuración' });
+            }
+
+            // Fetch reserve
+            const reserveRes = await fetch(`${API_URL}/admin/reserve`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (reserveRes.ok) {
+                const reserveData = await reserveRes.json();
+                setReserve(reserveData);
             }
         } catch (error) {
             console.error('Error fetching config:', error);
@@ -90,6 +106,41 @@ const Configuration = () => {
             setMessage({ type: 'error', text: 'Error de conexión' });
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleInjectStock = async (e) => {
+        e.preventDefault();
+        if (!stockToInject || parseFloat(stockToInject) <= 0) {
+            setMessage({ type: 'error', text: 'Ingrese una cantidad válida' });
+            return;
+        }
+
+        setInjecting(true);
+        try {
+            const response = await fetch(`${API_URL}/admin/reserve/deposit`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ amount: parseFloat(stockToInject) })
+            });
+
+            if (response.ok) {
+                setMessage({ type: 'success', text: `Se inyectaron ${stockToInject}g de cacao físico` });
+                setStockToInject('');
+                fetchConfig(); // Refresh reserve data
+                setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+            } else {
+                const error = await response.json();
+                setMessage({ type: 'error', text: error.error || 'Error al inyectar' });
+            }
+        } catch (error) {
+            console.error('Error injecting stock:', error);
+            setMessage({ type: 'error', text: 'Error de conexión' });
+        } finally {
+            setInjecting(false);
         }
     };
 
@@ -386,6 +437,65 @@ const Configuration = () => {
                                     />
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Gestión de Reserva Física */}
+                    <div className="glass-card" style={{ padding: '30px', gridColumn: 'span 2' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '25px' }}>
+                            <div style={{ padding: '8px', background: 'var(--primary-glow)', borderRadius: '8px', color: 'var(--primary)' }}>
+                                <Wallet size={20} />
+                            </div>
+                            <h3 style={{ margin: 0 }}>Gestión de Reserva Física (Inventario)</h3>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '30px', alignItems: 'start' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
+                                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '15px', textAlign: 'center' }}>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '5px' }}>Total en Bóveda</p>
+                                    <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{reserve.totalCacaoStock.toLocaleString()} g</h3>
+                                </div>
+                                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '15px', textAlign: 'center' }}>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '5px' }}>En manos de Clientes</p>
+                                    <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{reserve.tokensIssued.toLocaleString()} g</h3>
+                                </div>
+                                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '15px', textAlign: 'center', border: '1px solid var(--primary-glow)' }}>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '5px' }}>Disponible para Venta</p>
+                                    <h3 style={{ fontSize: '1.5rem', margin: 0 }} className="gold-text">{reserve.availableStock.toLocaleString()} g</h3>
+                                </div>
+                            </div>
+
+                            <form onSubmit={handleInjectStock} className="glass-card" style={{ padding: '20px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                                <label style={{ display: 'block', marginBottom: '10px', fontSize: '0.9rem' }}>Inyectar Cacao Físico</label>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <input
+                                        type="number"
+                                        placeholder="Gramos a añadir"
+                                        value={stockToInject}
+                                        onChange={(e) => setStockToInject(e.target.value)}
+                                        style={{
+                                            flex: 1,
+                                            background: 'rgba(0,0,0,0.2)',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                            borderRadius: '10px',
+                                            padding: '10px',
+                                            color: '#fff',
+                                            outline: 'none'
+                                        }}
+                                    />
+                                    <button
+                                        type="submit"
+                                        className="btn-primary"
+                                        disabled={injecting}
+                                        style={{ padding: '10px 20px', fontSize: '0.9rem' }}
+                                    >
+                                        {injecting ? 'Procesando...' : 'Inyectar'}
+                                    </button>
+                                </div>
+                                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+                                    Esto incrementa el stock físico reportado en el sistema sin afectar los balances de los usuarios.
+                                </p>
+                            </form>
                         </div>
                     </div>
                 </div>

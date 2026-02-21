@@ -29,6 +29,22 @@ async function getSystemConfig() {
   }
 }
 
+async function getGlobalReserve() {
+  try {
+    let reserve = await prisma.globalReserve.findFirst({ where: { id: 1 } });
+    if (!reserve) {
+      // Fallback if not initialized
+      reserve = await prisma.globalReserve.create({
+        data: { id: 1, totalCacaoStock: 0, tokensIssued: 0 }
+      });
+    }
+    return reserve;
+  } catch (err) {
+    console.error("Error al obtener GlobalReserve:", err.message);
+    return { totalCacaoStock: 0, tokensIssued: 0 };
+  }
+}
+
 async function getCacaoPrice(type = 'buy') {
   const config = await getSystemConfig();
   return type === 'sell' ? config.sellPrice : config.buyPrice;
@@ -186,6 +202,16 @@ app.post('/deposit', authMiddleware, async (req, res) => {
       dataUpdate = { cacaoBalance: { increment: parseFloat(amount) } };
       txData.amountCacao = parseFloat(amount);
       txData.amountUSD = parseFloat((amount * price).toFixed(2));
+
+      // Al depositar cacao (físico o digital), incrementamos la reserva
+      // Nota: Si el usuario trae cacao físico, incrementamos tanto el stock como los tokens emitidos
+      await prisma.globalReserve.update({
+        where: { id: 1 },
+        data: {
+          totalCacaoStock: { increment: parseFloat(amount) },
+          tokensIssued: { increment: parseFloat(amount) }
+        }
+      });
     } else {
       return res.status(400).json({ error: 'Tipo de depósito inválido' });
     }
@@ -248,6 +274,15 @@ app.post('/withdraw', authMiddleware, async (req, res) => {
       dataUpdate = { cacaoBalance: { decrement: parseFloat(amount) } };
       txData.amountCacao = parseFloat(amount);
       txData.amountUSD = parseFloat((amount * price).toFixed(2));
+
+      // Al retirar cacao, decrementamos la reserva global
+      await prisma.globalReserve.update({
+        where: { id: 1 },
+        data: {
+          totalCacaoStock: { decrement: parseFloat(amount) },
+          tokensIssued: { decrement: parseFloat(amount) }
+        }
+      });
     } else {
       return res.status(400).json({ error: 'Tipo de retiro inválido' });
     }
@@ -274,39 +309,60 @@ app.post('/withdraw', authMiddleware, async (req, res) => {
 app.post('/convert', authMiddleware, async (req, res) => {
   try {
     const { type, amount } = req.body;
-    // type: "CONVERT_CACAO_TO_USD" | "CONVERT_USD_TO_CACAO"
     if (!type || !amount || amount <= 0) return res.status(400).json({ error: 'Datos inválidos' });
 
     const config = await getSystemConfig();
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
 
     let dataUpdate = {};
-    let txData = { type, amount: parseFloat(amount), status: 'COMPLETED' };
+    let txData = { type, amount: parseFloat(amount), status: 'COMPLETED', priceAt: 0 };
 
     if (type === 'CONVERT_CACAO_TO_USD') {
-      // El usuario nos vende cacao: usamos buyPrice
       const price = config.buyPrice;
       if (user.cacaoBalance < amount) return res.status(400).json({ error: 'Gramos de cacao insuficientes' });
+
       const usd = parseFloat((amount * price).toFixed(2));
       dataUpdate = {
         cacaoBalance: { decrement: parseFloat(amount) },
         fiatBalance: { increment: usd }
       };
+
       txData.priceAt = price;
       txData.amountCacao = parseFloat(amount);
       txData.amountUSD = usd;
+
+      await prisma.globalReserve.update({
+        where: { id: 1 },
+        data: { tokensIssued: { decrement: parseFloat(amount) } }
+      });
+
     } else if (type === 'CONVERT_USD_TO_CACAO') {
-      // El usuario nos compra cacao: usamos sellPrice
       const price = config.sellPrice;
       if (user.fiatBalance < amount) return res.status(400).json({ error: 'Saldo USD insuficiente' });
+
       const cacao = parseFloat((amount / price).toFixed(4));
+
+      // Verificación de Reserva Global
+      const reserve = await getGlobalReserve();
+      const available = reserve.totalCacaoStock - reserve.tokensIssued;
+      if (cacao > available) {
+        return res.status(400).json({ error: 'Lo sentimos, no hay cacao disponible para intercambio en este momento' });
+      }
+
       dataUpdate = {
         fiatBalance: { decrement: parseFloat(amount) },
         cacaoBalance: { increment: cacao }
       };
+
       txData.priceAt = price;
       txData.amountUSD = parseFloat(amount);
       txData.amountCacao = cacao;
+
+      await prisma.globalReserve.update({
+        where: { id: 1 },
+        data: { tokensIssued: { increment: cacao } }
+      });
+
     } else {
       return res.status(400).json({ error: 'Tipo de conversión inválido' });
     }
@@ -323,7 +379,7 @@ app.post('/convert', authMiddleware, async (req, res) => {
       message: 'Conversión exitosa',
       fiat: updated.fiatBalance,
       cacao: updated.cacaoBalance,
-      priceUsed: price
+      priceUsed: txData.priceAt
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -543,6 +599,47 @@ app.put('/admin/users/:id', adminMiddleware, async (req, res) => {
       }
     });
     res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── ADMIN RESERVA ─────────────────────────────────────────────────────────────
+app.get('/admin/reserve', adminMiddleware, async (req, res) => {
+  try {
+    const reserve = await getGlobalReserve();
+    const config = await getSystemConfig();
+
+    // Gramos en manos de clientes = tokensIssued
+    // Gramos disponibles para la venta = totalCacaoStock - tokensIssued
+    // Valor total de la reserva = totalCacaoStock * buyPrice
+
+    res.json({
+      ...reserve,
+      availableStock: Math.max(0, reserve.totalCacaoStock - reserve.tokensIssued),
+      totalReserveValueUSD: parseFloat((reserve.totalCacaoStock * config.buyPrice).toFixed(2))
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/admin/reserve/deposit', adminMiddleware, async (req, res) => {
+  try {
+    const { amount, notes } = req.body;
+    if (!amount || amount <= 0) return res.status(400).json({ error: 'Cantidad inválida' });
+
+    const updated = await prisma.globalReserve.update({
+      where: { id: 1 },
+      data: {
+        totalCacaoStock: { increment: parseFloat(amount) }
+      }
+    });
+
+    res.json({
+      message: `Inyección de ${amount}g de cacao físico registrada exitosamente`,
+      reserve: updated
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

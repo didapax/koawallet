@@ -77,3 +77,10 @@ model SystemConfig {
   lastMarketPrice     Float?                   // Último precio de referencia mercado mundial (USD/g)
   updatedAt           DateTime @updatedAt
 }
+
+model GlobalReserve {
+  id              Int      @id @default(1)
+  totalCacaoStock Float    @default(0) // Cacao físico en almacén (gramos)
+  tokensIssued    Float    @default(0) // Gramos en manos de clientes
+  lastUpdated     DateTime @updatedAt
+}

@@ -1,14 +1,60 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion as Motion } from 'framer-motion';
-import { Users, LayoutDashboard, LogOut, TrendingUp, Wallet, ArrowRight, Settings } from 'lucide-react';
+import { Users, LayoutDashboard, LogOut, TrendingUp, Wallet, ArrowRight, Settings, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
+
+const API_URL = 'http://localhost:3000';
 
 const Dashboard = ({ onLogout }) => {
     const userRole = localStorage.getItem('admin_role') || 'user';
+    const token = localStorage.getItem('admin_token');
     const canViewUsers = userRole === 'admin' || userRole === 'oficinista';
+
+    const [stats, setStats] = useState({
+        totalUsers: 0,
+        volumeToday: 0,
+        reserve: {
+            totalCacaoStock: 0,
+            tokensIssued: 0,
+            availableStock: 0,
+            totalReserveValueUSD: 0
+        }
+    });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                // Fetch reserve
+                const reserveRes = await fetch(`${API_URL}/admin/reserve`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const reserveData = await reserveRes.json();
+
+                // Fetch users count (actually we'd need an endpoint or calculate from /admin/users)
+                const usersRes = await fetch(`${API_URL}/admin/users`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const usersData = await usersRes.json();
+
+                setStats({
+                    totalUsers: usersData.length,
+                    volumeToday: 0, // Placeholder for now or calculate from transactions
+                    reserve: reserveData
+                });
+            } catch (err) {
+                console.error("Error fetching dashboard stats:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (token) fetchStats();
+    }, [token]);
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh' }}>
+            {/* Sidebar code... skipped for brevity in target but included in replacement if needed */}
             {/* Sidebar */}
             <div className="glass-card" style={{
                 width: '280px',
@@ -79,19 +125,41 @@ const Dashboard = ({ onLogout }) => {
                 </header>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '25px', marginBottom: '40px' }}>
-                    <StatCard title="Total Usuarios" value="1,284" icon={<Users size={24} />} trend="+12% este mes" />
-                    <StatCard title="Volumen Hoy" value="$45,230" icon={<TrendingUp size={24} />} trend="+5.4%" />
-                    <StatCard title="Reservas Cacao" value="12,400 g" icon={<Wallet size={24} />} trend="Estable" />
+                    <StatCard
+                        title="Total Usuarios"
+                        value={loading ? "..." : stats.totalUsers.toLocaleString()}
+                        icon={<Users size={24} />}
+                        trend="Clientes registrados"
+                    />
+                    <StatCard
+                        title="Cacao Disponible"
+                        value={loading ? "..." : `${stats.reserve.availableStock.toLocaleString()} g`}
+                        icon={<Wallet size={24} />}
+                        trend="Gramos para la venta"
+                    />
+                    <StatCard
+                        title="Pasivo (Clientes)"
+                        value={loading ? "..." : `${stats.reserve.tokensIssued.toLocaleString()} g`}
+                        icon={<Info size={24} />}
+                        trend="Gramos en manos de clientes"
+                    />
+                    <StatCard
+                        title="Valor Reserva"
+                        value={loading ? "..." : `~$${stats.reserve.totalReserveValueUSD.toLocaleString()}`}
+                        icon={<TrendingUp size={24} />}
+                        trend="Respaldo físico total"
+                    />
                 </div>
 
                 <div className="glass-card" style={{ padding: '40px', textAlign: 'center' }}>
-                    <h2 style={{ marginBottom: '20px' }}>Gestión de Personal y Clientes</h2>
+                    <h2 style={{ marginBottom: '20px' }}>Gestión de Reserva Física</h2>
                     <p style={{ color: 'var(--text-muted)', marginBottom: '30px', maxWidth: '600px', margin: '0 auto 30px' }}>
-                        Utiliza el apartado de gestión de usuarios para crear nuevos cajeros, oficinistas o administradores, así como para gestionar los estados de los clientes.
+                        Actualmente tienes <strong className="gold-text">{stats.reserve.totalCacaoStock.toLocaleString()} g</strong> de cacao físico en bóveda.
+                        Ajusta este inventario desde la sección de configuración.
                     </p>
-                    <Link to="/users" style={{ textDecoration: 'none' }}>
+                    <Link to="/config" style={{ textDecoration: 'none' }}>
                         <button className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
-                            Ir a Gestión de Usuarios <ArrowRight size={20} />
+                            Gestionar Inventario <Settings size={20} />
                         </button>
                     </Link>
                 </div>
