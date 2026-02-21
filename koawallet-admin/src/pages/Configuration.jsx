@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion as Motion } from 'framer-motion';
-import { Settings, Save, RefreshCcw, DollarSign, Activity, Calendar, LayoutDashboard, LogOut, Users, Info, Wallet } from 'lucide-react';
+import { Settings, Save, RefreshCcw, DollarSign, Activity, Calendar, LayoutDashboard, LogOut, Users, Info, Wallet, MapPin } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 const API_URL = 'http://localhost:3000';
@@ -190,10 +190,19 @@ const Configuration = () => {
                     )}
 
                     {userRole === 'admin' && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--primary)', background: 'var(--primary-glow)', borderRadius: '12px', marginBottom: '10px' }}>
-                            <Settings size={20} />
-                            <span style={{ fontWeight: 500 }}>Configuración</span>
-                        </div>
+                        <>
+                            <Link to="/collection-centers" style={{ textDecoration: 'none', color: 'inherit' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px' }} className="nav-item">
+                                    <MapPin size={20} />
+                                    <span style={{ fontWeight: 500 }}>Centros de Acopio</span>
+                                </div>
+                            </Link>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--primary)', background: 'var(--primary-glow)', borderRadius: '12px', marginBottom: '10px' }}>
+                                <Settings size={20} />
+                                <span style={{ fontWeight: 500 }}>Configuración</span>
+                            </div>
+                        </>
                     )}
                 </nav>
 

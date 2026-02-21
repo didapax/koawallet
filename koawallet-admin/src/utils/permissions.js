@@ -4,15 +4,15 @@
  */
 export const ROLE_PERMISSIONS = {
     admin: {
-        allowedPaths: ['*', '/', '/users', '/config'], // Admin can access everything
+        allowedPaths: ['*', '/', '/users', '/config', '/collection-centers'], // Admin can access everything
         restrictedActions: []
     },
     oficinista: {
-        allowedPaths: ['/', '/users'], // Oficinista can view dashboard and users
+        allowedPaths: ['/', '/users', '/collection-centers'], // Oficinista can view dashboard, users and centers
         restrictedActions: ['delete_user', 'change_any_password', 'manage_staff']
     },
     cajero: {
-        allowedPaths: ['/'], // Cajero might only have dashboard/transactions access (to be defined)
+        allowedPaths: ['/', '/collection-centers'], // Cajero might only have dashboard/centers
         restrictedActions: ['manage_users', 'view_reports_sensitive']
     }
 };

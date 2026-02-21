@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import UserManagement from './pages/UserManagement';
 import Configuration from './pages/Configuration';
+import CollectionCenters from './pages/CollectionCenters';
 import './index.css';
 
 import { hasPermission } from './utils/permissions';
@@ -50,6 +52,20 @@ function App() {
     setUserRole('');
   };
 
+  // Global axios interceptor for 401 errors
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401) {
+          handleLogout();
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => axios.interceptors.response.eject(interceptor);
+  }, []);
+
   return (
     <Router>
       <Routes>
@@ -72,6 +88,12 @@ function App() {
         <Route path="/config" element={
           <ProtectedRoute isAuthenticated={isAuthenticated} role={userRole} path="/config">
             <Configuration />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/collection-centers" element={
+          <ProtectedRoute isAuthenticated={isAuthenticated} role={userRole} path="/collection-centers">
+            <CollectionCenters />
           </ProtectedRoute>
         } />
 

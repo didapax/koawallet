@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
-import { Users, Search, Plus, Edit2, Shield, Ban, CheckCircle, X, ChevronLeft, Loader2, Save } from 'lucide-react';
+import { Users, Search, Plus, Edit2, Shield, Ban, CheckCircle, X, ChevronLeft, Loader2, Save, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 
@@ -114,6 +114,7 @@ const UserManagement = () => {
             <div className="glass-card" style={{ width: '80px', margin: '20px', padding: '30px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
                 <Link to="/" style={{ color: 'var(--text-muted)' }}><LayoutDashboardIcon /></Link>
                 <div style={{ color: 'var(--primary)' }}><Users size={24} /></div>
+                <Link to="/collection-centers" style={{ color: 'var(--text-muted)' }}><MapPin size={24} /></Link>
                 <button
                     onClick={() => setShowPasswordModal(true)}
                     style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', marginTop: 'auto' }}

@@ -51,12 +51,20 @@ async function getCacaoPrice(type = 'buy') {
 }
 
 // ─── Middleware Auth ───────────────────────────────────────────────────────────
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   const header = req.headers.authorization;
   if (!header) return res.status(401).json({ error: 'Token requerido' });
   try {
     const token = header.replace('Bearer ', '');
     const decoded = jwt.verify(token, JWT_SECRET);
+
+    // Check if user still exists
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    if (!user) {
+      console.log(`[AUTH] Ghost user token: User ID ${decoded.userId} not found`);
+      return res.status(401).json({ error: 'Sesión inválida: Usuario no encontrado' });
+    }
+
     req.userId = decoded.userId;
     next();
   } catch {
@@ -71,8 +79,15 @@ async function adminMiddleware(req, res, next) {
     const token = header.replace('Bearer ', '');
     const decoded = jwt.verify(token, JWT_SECRET);
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+
+    if (!user) {
+      console.log(`[AUTH] Ghost user token in admin: User ID ${decoded.userId} not found`);
+      return res.status(401).json({ error: 'Sesión inválida: Usuario no encontrado' });
+    }
+
     const staffRoles = ['admin', 'cajero', 'oficinista'];
-    if (!user || !staffRoles.includes(user.role)) {
+    if (!staffRoles.includes(user.role?.toLowerCase())) {
+      console.log(`[AUTH] Access denied: User ${user.email} (ID: ${user.id}) with role "${user.role}" attempted admin access`);
       return res.status(403).json({ error: 'Acceso denegado: Se requiere rol administrativo' });
     }
     req.userId = decoded.userId;
@@ -640,6 +655,79 @@ app.post('/admin/reserve/deposit', adminMiddleware, async (req, res) => {
       message: `Inyección de ${amount}g de cacao físico registrada exitosamente`,
       reserve: updated
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── COLECCIÓN DE CENTROS (ADMIN) ─────────────────────────────────────────────
+app.get('/admin/collection-centers', adminMiddleware, async (req, res) => {
+  try {
+    const centers = await prisma.collectionCenter.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(centers);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/admin/collection-centers', adminMiddleware, async (req, res) => {
+  try {
+    const { name, address, city, phone, managerName, operatingHours, latitude, longitude, googleMapsUrl } = req.body;
+    const center = await prisma.collectionCenter.create({
+      data: {
+        name,
+        address,
+        city,
+        phone,
+        managerName,
+        operatingHours,
+        latitude: latitude ? parseFloat(latitude) : null,
+        longitude: longitude ? parseFloat(longitude) : null,
+        googleMapsUrl,
+        currentStock: 0
+      }
+    });
+    res.status(201).json(center);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/admin/collection-centers/:id', adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, address, city, phone, managerName, operatingHours, latitude, longitude, googleMapsUrl, currentStock, isActive } = req.body;
+    const updated = await prisma.collectionCenter.update({
+      where: { id: parseInt(id) },
+      data: {
+        name,
+        address,
+        city,
+        phone,
+        managerName,
+        operatingHours,
+        latitude: latitude !== undefined ? (latitude ? parseFloat(latitude) : null) : undefined,
+        longitude: longitude !== undefined ? (longitude ? parseFloat(longitude) : null) : undefined,
+        googleMapsUrl,
+        currentStock: currentStock !== undefined ? parseFloat(currentStock) : undefined,
+        isActive: isActive !== undefined ? !!isActive : undefined
+      }
+    });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/admin/collection-centers/:id', adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.collectionCenter.delete({
+      where: { id: parseInt(id) }
+    });
+    res.json({ message: 'Centro de acopio eliminado exitosamente' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

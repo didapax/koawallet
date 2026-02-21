@@ -78,9 +78,28 @@ model SystemConfig {
   updatedAt           DateTime @updatedAt
 }
 
+
 model GlobalReserve {
   id              Int      @id @default(1)
   totalCacaoStock Float    @default(0) // Cacao físico en almacén (gramos)
   tokensIssued    Float    @default(0) // Gramos en manos de clientes
   lastUpdated     DateTime @updatedAt
+}
+
+model CollectionCenter {
+  id              Int      @id @default(autoincrement())
+  name            String   // Ejemplo: "Acopio Central Quevedo"
+  address         String   // Dirección textual
+  city            String
+  phone           String?
+  managerName     String?  // Persona responsable
+  operatingHours  String   // Ejemplo: "Lun-Vie 08:00 - 17:00"
+  // Datos Geográficos
+  latitude        Float?   // Para posicionar el pin exactamente
+  longitude       Float?
+  googleMapsUrl   String?  // El link que se abrirá en el móvil (https://maps.google.com/...)
+  // Inventario local (Opcional pero recomendado)
+  currentStock    Float    @default(0) // Cuánto cacao físico hay en este centro específico  
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
 }
