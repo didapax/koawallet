@@ -15,6 +15,7 @@ const Configuration = () => {
         sellPrice: 0,
         maintenanceFee: 0,
         networkFee: 0,
+        usdVesRate: 0,
         marketTonPrice: 0,
         lastMarketPrice: 0,
         currentMarketTonPrice: 0,
@@ -90,7 +91,8 @@ const Configuration = () => {
                     buyPrice: parseFloat(config.buyPrice),
                     sellPrice: parseFloat(config.sellPrice),
                     maintenanceFee: parseFloat(config.maintenanceFee),
-                    networkFee: parseFloat(config.networkFee)
+                    networkFee: parseFloat(config.networkFee),
+                    usdVesRate: parseFloat(config.usdVesRate)
                 })
             });
 
@@ -392,61 +394,103 @@ const Configuration = () => {
                             <h3 style={{ margin: 0 }}>Comisiones y Tasas</h3>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Tasa de Mantenimiento Mensual (USD)</label>
-                                <div className="input-group" style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    background: 'rgba(255, 255, 255, 0.05)',
-                                    borderRadius: '12px',
-                                    padding: '0 15px'
-                                }}>
-                                    <DollarSign size={16} color="var(--primary)" />
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={config.maintenanceFee}
-                                        onChange={(e) => setConfig({ ...config, maintenanceFee: e.target.value })}
-                                        style={{
-                                            background: 'transparent',
-                                            border: 'none',
-                                            color: '#fff',
-                                            padding: '12px 10px',
-                                            width: '100%',
-                                            outline: 'none'
-                                        }}
-                                    />
+                        <form onSubmit={handleSave}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '30px', marginBottom: '25px' }}>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Tasa de Mantenimiento Mensual (USD)</label>
+                                    <div className="input-group" style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        background: 'rgba(255, 255, 255, 0.05)',
+                                        borderRadius: '12px',
+                                        padding: '0 15px'
+                                    }}>
+                                        <DollarSign size={16} color="var(--primary)" />
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={config.maintenanceFee}
+                                            onChange={(e) => setConfig({ ...config, maintenanceFee: e.target.value })}
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: '#fff',
+                                                padding: '12px 10px',
+                                                width: '100%',
+                                                outline: 'none'
+                                            }}
+                                        />
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Tasa de Uso de Red por Transacción (USD)</label>
-                                <div className="input-group" style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    background: 'rgba(255, 255, 255, 0.05)',
-                                    borderRadius: '12px',
-                                    padding: '0 15px'
-                                }}>
-                                    <DollarSign size={16} color="var(--primary)" />
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={config.networkFee}
-                                        onChange={(e) => setConfig({ ...config, networkFee: e.target.value })}
-                                        style={{
-                                            background: 'transparent',
-                                            border: 'none',
-                                            color: '#fff',
-                                            padding: '12px 10px',
-                                            width: '100%',
-                                            outline: 'none'
-                                        }}
-                                    />
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Tasa de Uso de Red por Transacción (USD)</label>
+                                    <div className="input-group" style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        background: 'rgba(255, 255, 255, 0.05)',
+                                        borderRadius: '12px',
+                                        padding: '0 15px'
+                                    }}>
+                                        <DollarSign size={16} color="var(--primary)" />
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={config.networkFee}
+                                            onChange={(e) => setConfig({ ...config, networkFee: e.target.value })}
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: '#fff',
+                                                padding: '12px 10px',
+                                                width: '100%',
+                                                outline: 'none'
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Tasa USD-VES (Bolívares por USD)</label>
+                                    <div className="input-group" style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        background: 'rgba(255, 255, 255, 0.05)',
+                                        borderRadius: '12px',
+                                        padding: '0 15px'
+                                    }}>
+                                        <Activity size={16} color="var(--primary)" />
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={config.usdVesRate}
+                                            onChange={(e) => setConfig({ ...config, usdVesRate: e.target.value })}
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: '#fff',
+                                                padding: '12px 10px',
+                                                width: '100%',
+                                                outline: 'none'
+                                            }}
+                                        />
+                                    </div>
+                                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '5px' }}>
+                                        Usada para el cálculo: (Monto VES / Tasa) / Precio Cacao = Gramos.
+                                    </p>
                                 </div>
                             </div>
-                        </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                    type="submit"
+                                    className="btn-primary"
+                                    disabled={saving}
+                                    style={{ padding: '12px 30px', display: 'flex', alignItems: 'center', gap: '10px' }}
+                                >
+                                    {saving ? 'Guardando...' : <><Save size={18} /> Guardar Comisiones y Tasas</>}
+                                </button>
+                            </div>
+                        </form>
                     </div>
 
                     {/* Gestión de Reserva Física */}

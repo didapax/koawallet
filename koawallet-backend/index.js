@@ -19,13 +19,13 @@ async function getSystemConfig() {
     if (!config) {
       // Fallback if not initialized
       config = await prisma.systemConfig.create({
-        data: { id: 1, buyPrice: 3.5, sellPrice: 4.0, maintenanceFee: 1.0, networkFee: 0.1 }
+        data: { id: 1, buyPrice: 3.5, sellPrice: 4.0, maintenanceFee: 1.0, networkFee: 0.1, usdVesRate: 36.5 }
       });
     }
     return config;
   } catch (err) {
     console.error("Error al obtener SystemConfig:", err.message);
-    return { buyPrice: 3.5, sellPrice: 4.0, maintenanceFee: 1.0, networkFee: 0.1 };
+    return { buyPrice: 3.5, sellPrice: 4.0, maintenanceFee: 1.0, networkFee: 0.1, usdVesRate: 36.5 };
   }
 }
 
@@ -546,7 +546,7 @@ app.get('/admin/config', adminMiddleware, async (req, res) => {
 
 app.put('/admin/config', adminMiddleware, async (req, res) => {
   try {
-    const { buyPrice, sellPrice, maintenanceFee, networkFee } = req.body;
+    const { buyPrice, sellPrice, maintenanceFee, networkFee, usdVesRate } = req.body;
     const updated = await prisma.systemConfig.update({
       where: { id: 1 },
       data: {
@@ -554,6 +554,7 @@ app.put('/admin/config', adminMiddleware, async (req, res) => {
         sellPrice: sellPrice !== undefined ? parseFloat(sellPrice) : undefined,
         maintenanceFee: maintenanceFee !== undefined ? parseFloat(maintenanceFee) : undefined,
         networkFee: networkFee !== undefined ? parseFloat(networkFee) : undefined,
+        usdVesRate: usdVesRate !== undefined ? parseFloat(usdVesRate) : undefined,
       }
     });
     res.json(updated);

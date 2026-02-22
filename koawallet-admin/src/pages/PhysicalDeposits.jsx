@@ -27,6 +27,123 @@ import axios from 'axios';
 
 const API_BASE = 'http://localhost:3000';
 
+const SearchableSelect = ({ options, value, onChange, placeholder }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState('');
+    const containerRef = React.useRef(null);
+
+    const selectedOption = options.find(o => String(o.id) === String(value));
+
+    const filteredOptions = options.filter(o =>
+        (o.name || '').toLowerCase().includes(search.toLowerCase()) ||
+        (o.email || '').toLowerCase().includes(search.toLowerCase()) ||
+        (o.cedula || '').toLowerCase().includes(search.toLowerCase())
+    );
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (containerRef.current && !containerRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return (
+        <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+            <div
+                className="premium-input select-trigger"
+                style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <span style={{ color: selectedOption ? '#fff' : 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {selectedOption ? (selectedOption.name || selectedOption.email) : placeholder}
+                </span>
+                <ChevronDown size={18} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }} />
+            </div>
+
+            <AnimatePresence>
+                {isOpen && (
+                    <Motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="glass-card"
+                        style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            right: 0,
+                            zIndex: 1001,
+                            marginTop: '8px',
+                            padding: '10px',
+                            boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                            background: '#1a1a1f',
+                            border: '1px solid var(--glass-border)',
+                            maxHeight: '300px',
+                            display: 'flex',
+                            flexDirection: 'column'
+                        }}
+                    >
+                        <div style={{ position: 'relative', marginBottom: '10px' }}>
+                            <Search size={16} style={{ position: 'absolute', left: '10px', top: '10px', color: 'var(--text-muted)' }} />
+                            <input
+                                autoFocus
+                                type="text"
+                                placeholder="Buscar productor..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                style={{
+                                    padding: '8px 8px 8px 35px',
+                                    fontSize: '0.9rem',
+                                    background: 'rgba(255,255,255,0.05)',
+                                    border: '1px solid var(--glass-border)',
+                                    borderRadius: '8px',
+                                    width: '100%',
+                                    color: '#fff',
+                                    outline: 'none'
+                                }}
+                            />
+                        </div>
+                        <div style={{ overflowY: 'auto', flex: 1, paddingRight: '5px' }} className="custom-scrollbar">
+                            {filteredOptions.length === 0 ? (
+                                <div style={{ padding: '15px', color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center' }}>
+                                    No se encontraron resultados
+                                </div>
+                            ) : (
+                                filteredOptions.map(option => (
+                                    <div
+                                        key={option.id}
+                                        onClick={() => {
+                                            onChange(option.id);
+                                            setIsOpen(false);
+                                            setSearch('');
+                                        }}
+                                        className={`search-option ${String(value) === String(option.id) ? 'selected' : ''}`}
+                                        style={{
+                                            padding: '10px',
+                                            borderRadius: '8px',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s',
+                                            marginBottom: '4px'
+                                        }}
+                                    >
+                                        <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{option.name || option.email}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            {option.cedula ? `C.I: ${option.cedula}` : option.email}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </Motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
 const PhysicalDeposits = () => {
     const [deposits, setDeposits] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -332,17 +449,12 @@ const PhysicalDeposits = () => {
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '25px' }}>
                                     <div>
                                         <label className="label">Productor</label>
-                                        <select
-                                            required
-                                            className="premium-input"
+                                        <SearchableSelect
+                                            options={users}
                                             value={formData.userId}
-                                            onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
-                                        >
-                                            <option value="">Seleccionar Productor...</option>
-                                            {users.map(u => (
-                                                <option key={u.id} value={u.id}>{u.name || u.email} ({u.cedula || 'Sin cédula'})</option>
-                                            ))}
-                                        </select>
+                                            onChange={(val) => setFormData({ ...formData, userId: val })}
+                                            placeholder="Seleccionar Productor..."
+                                        />
                                     </div>
                                     <div>
                                         <label className="label">Centro de Acopio</label>
@@ -501,6 +613,17 @@ const PhysicalDeposits = () => {
 
                 .table-row:hover { background: rgba(255, 255, 255, 0.035) !important; }
                 .hover-white:hover { color: #fff !important; }
+
+                .search-option:hover { background: rgba(255, 255, 255, 0.05); }
+                .search-option.selected { background: var(--primary-glow); border: 1px solid rgba(212, 175, 55, 0.3); }
+                .search-option.selected div { color: var(--primary) !important; }
+
+                .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(212, 175, 55, 0.2); borderRadius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(212, 175, 55, 0.4); }
+                
+                .select-trigger:hover { border-color: var(--primary); background: rgba(255, 255, 255, 0.05); }
             `}</style>
         </div>
     );
