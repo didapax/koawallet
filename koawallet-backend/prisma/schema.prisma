@@ -16,6 +16,7 @@ model User {
   cedula            String?
   fiatBalance       Float             @default(0.0)
   cacaoBalance      Float             @default(0.0)
+  cacaoLocked       Float             @default(0.0) // En proceso de retiro/venta
   // Datos bancarios personales del usuario
   bankCountry       String?
   bankName          String?
@@ -45,28 +46,43 @@ model BankOption {
 }
 
 model PaymentMethod {
-  id          Int    @id @default(autoincrement())
-  code        String @unique // "BANK" | "OFFICE"
-  label       String
-  description String?
-  isActive    Boolean @default(true)
+  id            Int      @id @default(autoincrement())
+  type          String   // "FIAT" o "CRYPTO"
+  name          String   // Ejemplo: "Banesco", "Binance Pay", "Zelle"
+  currency      String   // "VES", "USDT", "USD"
+  details       Json     // Datos de la cuenta (Cédula, Teléfono, Wallet Address, Red)
+  instructions  String?  // Ejemplo: "Enviar solo por red TRC20"
+  isActive      Boolean  @default(true)
+  transactions  Transaction[]
 }
 
 model Transaction {
-  id           Int         @id @default(autoincrement())
-  userId       Int
-  user         User        @relation(fields: [userId], references: [id])
-  type         String      // "DEPOSIT_CACAO" | "DEPOSIT_USD" | "WITHDRAW_CACAO" | "WITHDRAW_USD" | "CONVERT_CACAO_TO_USD" | "CONVERT_USD_TO_CACAO"
-  amount       Float       // Cantidad principal (gramos de cacao o USD según tipo)
-  amountUSD    Float?      // Equivalente en USD (para conversiones/depósitos)
-  amountCacao  Float?      // Equivalente en cacao (para conversiones/depósitos)
-  priceAt      Float?      // Precio del cacao al momento (USD/g)
-  method       String?     // "BANK" | "OFFICE"
-  bankOptionId Int?
-  bankOption   BankOption? @relation(fields: [bankOptionId], references: [id])
-  status       String      @default("PENDING") // "PENDING" | "COMPLETED" | "REJECTED"
-  notes        String?
-  createdAt    DateTime    @default(now())
+  id                Int           @id @default(autoincrement())
+  userId            Int
+  user              User          @relation(fields: [userId], references: [id])
+  paymentMethodId   Int?
+  paymentMethod     PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  type              String        // "DEPOSIT_CACAO", "WITHDRAW_USD", "BUY", "SELL", etc.
+  status            String        @default("PENDING") // "PENDING", "COMPLETED", "REJECTED"
+  // Montos
+  amount            Float         // Cantidad principal (histórico/legacy)
+  fiatAmount        Float?        // Monto pagado/recibido (ej. 1000 VES)
+  gramsAmount       Float?        // Gramos de cacao involucrados
+  exchangeRate      Float?        // Tasa USD/VES en ese momento
+  cacaoPriceUSD     Float?        // Precio Cacao/USD en ese momento
+  amountUSD         Float?        // Equivalente en USD (para conversiones/depósitos)
+  amountCacao       Float?        // Equivalente en cacao (para conversiones/depósitos)
+  priceAt           Float?        // Precio del cacao al momento (USD/g)
+  // Verificación P2P
+  reference         String?       // El Hash de la red o el número de referencia bancaria
+  receiptImage      String?       // Link opcional a la foto del comprobante
+  adminNotes        String?       // Por si el cajero rechaza por referencia inválida
+  method            String?       // "BANK" | "OFFICE" (legacy)
+  bankOptionId      Int?
+  bankOption        BankOption?   @relation(fields: [bankOptionId], references: [id])
+  notes             String?       // legacy notes
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 }
 
 model SystemConfig {

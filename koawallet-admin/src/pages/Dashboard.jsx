@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion as Motion } from 'framer-motion';
-import { Users, LayoutDashboard, LogOut, TrendingUp, Wallet, ArrowRight, Settings, Info, MapPin } from 'lucide-react';
+import { Users, LayoutDashboard, LogOut, TrendingUp, Wallet, ArrowRight, Settings, Info, MapPin, ClipboardList, CreditCard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const API_URL = 'http://localhost:3000';
@@ -106,6 +106,22 @@ const Dashboard = ({ onLogout }) => {
                             <span style={{ fontWeight: 500 }}>Depósitos Físicos</span>
                         </div>
                     </Link>
+
+                    <Link to="/cashier" style={{ textDecoration: 'none', color: 'inherit' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
+                            <ClipboardList size={20} />
+                            <span style={{ fontWeight: 500 }}>Cola del Cajero</span>
+                        </div>
+                    </Link>
+
+                    {userRole === 'admin' && (
+                        <Link to="/payment-methods" style={{ textDecoration: 'none', color: 'inherit' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
+                                <CreditCard size={20} />
+                                <span style={{ fontWeight: 500 }}>Métodos de Pago</span>
+                            </div>
+                        </Link>
+                    )}
                 </nav>
 
                 <button

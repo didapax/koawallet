@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
-import { Users, Search, Plus, Edit2, Shield, Ban, CheckCircle, X, ChevronLeft, Loader2, Save, MapPin } from 'lucide-react';
+import { Users, Search, Plus, Edit2, Shield, Ban, CheckCircle, X, ChevronLeft, Loader2, Save, MapPin, ClipboardList, CreditCard, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 
@@ -115,6 +115,11 @@ const UserManagement = () => {
                 <Link to="/" style={{ color: 'var(--text-muted)' }}><LayoutDashboardIcon /></Link>
                 <div style={{ color: 'var(--primary)' }}><Users size={24} /></div>
                 <Link to="/collection-centers" style={{ color: 'var(--text-muted)' }}><MapPin size={24} /></Link>
+                <Link to="/physical-deposits" style={{ color: 'var(--text-muted)' }}><TrendingUp size={24} /></Link>
+                <Link to="/cashier" style={{ color: 'var(--text-muted)' }}><ClipboardList size={24} /></Link>
+                {userRole === 'admin' && (
+                    <Link to="/payment-methods" style={{ color: 'var(--text-muted)' }}><CreditCard size={24} /></Link>
+                )}
                 <button
                     onClick={() => setShowPasswordModal(true)}
                     style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', marginTop: 'auto' }}
@@ -153,6 +158,12 @@ const UserManagement = () => {
                 </div>
 
                 <div className="glass-card" style={{ overflow: 'hidden' }}>
+                    {error && (
+                        <div style={{ background: 'rgba(244, 67, 54, 0.1)', color: 'var(--error)', padding: '15px', borderRadius: '12px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <XCircle size={20} /> {error}
+                        </div>
+                    )}
+
                     {loading ? (
                         <div style={{ padding: '100px', textAlign: 'center' }}><Loader2 className="animate-spin" size={40} color="var(--primary)" /></div>
                     ) : (

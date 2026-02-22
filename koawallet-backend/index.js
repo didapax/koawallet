@@ -180,6 +180,7 @@ app.get('/balance', authMiddleware, async (req, res) => {
     res.json({
       fiat: user.fiatBalance,
       cacao: user.cacaoBalance,
+      cacaoLocked: user.cacaoLocked,
       cacaoPricePerGram: config.buyPrice, // Usamos precio de compra como referencia general
       cacaoValueInUSD: parseFloat((user.cacaoBalance * config.buyPrice).toFixed(2)),
       networkFee: config.networkFee
@@ -286,18 +287,14 @@ app.post('/withdraw', authMiddleware, async (req, res) => {
       dataUpdate = { fiatBalance: { decrement: totalToDebitUSD } };
       txData.amountUSD = parseFloat(amount);
     } else if (type === 'WITHDRAW_CACAO') {
-      dataUpdate = { cacaoBalance: { decrement: parseFloat(amount) } };
+      // Cambio solicitado: Mover a cacaoLocked para evitar doble gasto
+      dataUpdate = {
+        cacaoBalance: { decrement: parseFloat(amount) },
+        cacaoLocked: { increment: parseFloat(amount) }
+      };
       txData.amountCacao = parseFloat(amount);
       txData.amountUSD = parseFloat((amount * price).toFixed(2));
-
-      // Al retirar cacao, decrementamos la reserva global
-      await prisma.globalReserve.update({
-        where: { id: 1 },
-        data: {
-          totalCacaoStock: { decrement: parseFloat(amount) },
-          tokensIssued: { decrement: parseFloat(amount) }
-        }
-      });
+      txData.gramsAmount = parseFloat(amount); // Usar nuevo campo para consistencia P2P
     } else {
       return res.status(400).json({ error: 'Tipo de retiro inválido' });
     }
@@ -313,7 +310,8 @@ app.post('/withdraw', authMiddleware, async (req, res) => {
     res.json({
       message: 'Retiro solicitado (pendiente de confirmación)',
       fiat: updated.fiatBalance,
-      cacao: updated.cacaoBalance
+      cacao: updated.cacaoBalance,
+      cacaoLocked: updated.cacaoLocked
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -421,6 +419,58 @@ app.get('/payment-methods', async (req, res) => {
       where: { isActive: true }
     });
     res.json(methods);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin Payment Methods CRUD
+app.get('/admin/payment-methods', adminMiddleware, async (req, res) => {
+  try {
+    const methods = await prisma.paymentMethod.findMany({
+      orderBy: { name: 'asc' }
+    });
+    res.json(methods);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/admin/payment-methods', adminMiddleware, async (req, res) => {
+  try {
+    const { type, name, currency, details, instructions, isActive } = req.body;
+    const method = await prisma.paymentMethod.create({
+      data: { type, name, currency, details, instructions, isActive: isActive !== undefined ? !!isActive : true }
+    });
+    res.status(201).json(method);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/admin/payment-methods/:id', adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { type, name, currency, details, instructions, isActive } = req.body;
+    const updated = await prisma.paymentMethod.update({
+      where: { id: parseInt(id) },
+      data: { type, name, currency, details, instructions, isActive: isActive !== undefined ? !!isActive : undefined }
+    });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/admin/payment-methods/:id', adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    // We do soft delete by default
+    await prisma.paymentMethod.update({
+      where: { id: parseInt(id) },
+      data: { isActive: false }
+    });
+    res.json({ message: 'Método de pago desactivado' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -729,6 +779,148 @@ app.delete('/admin/collection-centers/:id', adminMiddleware, async (req, res) =>
       where: { id: parseInt(id) }
     });
     res.json({ message: 'Centro de acopio eliminado exitosamente' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── COLA DEL CAJERO (ADMIN) ────────────────────────────────────────────────
+app.get('/admin/transactions/pending', adminMiddleware, async (req, res) => {
+  try {
+    const transactions = await prisma.transaction.findMany({
+      where: {
+        status: 'PENDING',
+        type: { in: ['BUY', 'SELL', 'DEPOSIT_CACAO', 'WITHDRAW_USD', 'DEPOSIT_USD', 'WITHDRAW_CACAO'] }
+      },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        paymentMethod: true
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+    res.json(transactions);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/admin/transactions/:id/approve', adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { adminNotes } = req.body;
+
+    const tx = await prisma.transaction.findUnique({
+      where: { id: parseInt(id) },
+      include: { user: true }
+    });
+
+    if (!tx || tx.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Transacción no válida o ya procesada' });
+    }
+
+    const config = await getSystemConfig();
+
+    await prisma.$transaction(async (p) => {
+      // 1. Update Transaction
+      await p.transaction.update({
+        where: { id: tx.id },
+        data: { status: 'COMPLETED', adminNotes, updatedAt: new Date() }
+      });
+
+      // 2. Business Logic
+      if (tx.type === 'BUY') {
+        // Compra: User pays FIAT, receives Cacao
+        const grams = tx.gramsAmount || (tx.fiatAmount / tx.cacaoPriceUSD);
+        await p.user.update({
+          where: { id: tx.userId },
+          data: { cacaoBalance: { increment: grams } }
+        });
+        // Update Reserve
+        await p.globalReserve.update({
+          where: { id: 1 },
+          data: {
+            totalCacaoStock: { decrement: grams },
+            tokensIssued: { increment: grams }
+          }
+        });
+      } else if (tx.type === 'SELL') {
+        // Venta/Retiro: User gives Cacao, receives FIAT
+        const grams = tx.gramsAmount;
+        await p.user.update({
+          where: { id: tx.userId },
+          data: { cacaoLocked: { decrement: grams } }
+        });
+        // Update Reserve
+        await p.globalReserve.update({
+          where: { id: 1 },
+          data: {
+            totalCacaoStock: { increment: grams },
+            tokensIssued: { decrement: grams }
+          }
+        });
+      } else if (tx.type === 'WITHDRAW_CACAO') {
+        // Legacy/Direct withdraw
+        await p.user.update({
+          where: { id: tx.userId },
+          data: { cacaoLocked: { decrement: tx.amount } }
+        });
+        await p.globalReserve.update({
+          where: { id: 1 },
+          data: {
+            totalCacaoStock: { decrement: tx.amount },
+            tokensIssued: { decrement: tx.amount }
+          }
+        });
+      } else if (tx.type === 'DEPOSIT_CACAO') {
+        // Handled in existing verify route usually, but here if needed
+        await p.user.update({
+          where: { id: tx.userId },
+          data: { cacaoBalance: { increment: tx.amount } }
+        });
+      }
+    });
+
+    res.json({ message: 'Transacción aprobada exitosamente' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/admin/transactions/:id/reject', adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { adminNotes } = req.body;
+
+    const tx = await prisma.transaction.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!tx || tx.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Transacción no válida o ya procesada' });
+    }
+
+    await prisma.$transaction(async (p) => {
+      // 1. Update Transaction
+      await p.transaction.update({
+        where: { id: tx.id },
+        data: { status: 'REJECTED', adminNotes, updatedAt: new Date() }
+      });
+
+      // 2. Reversal Logic
+      if (tx.type === 'SELL' || tx.type === 'WITHDRAW_CACAO') {
+        // Return grams to available balance
+        const grams = tx.gramsAmount || tx.amount;
+        await p.user.update({
+          where: { id: tx.userId },
+          data: {
+            cacaoLocked: { decrement: grams },
+            cacaoBalance: { increment: grams }
+          }
+        });
+      }
+    });
+
+    res.json({ message: 'Transacción rechazada' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

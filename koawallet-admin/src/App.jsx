@@ -7,6 +7,8 @@ import UserManagement from './pages/UserManagement';
 import Configuration from './pages/Configuration';
 import CollectionCenters from './pages/CollectionCenters';
 import PhysicalDeposits from './pages/PhysicalDeposits';
+import PaymentMethods from './pages/PaymentMethods';
+import Cashier from './pages/Cashier';
 import './index.css';
 
 import { hasPermission } from './utils/permissions';
@@ -101,6 +103,18 @@ function App() {
         <Route path="/physical-deposits" element={
           <ProtectedRoute isAuthenticated={isAuthenticated} role={userRole} path="/physical-deposits">
             <PhysicalDeposits />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/payment-methods" element={
+          <ProtectedRoute isAuthenticated={isAuthenticated} role={userRole} path="/payment-methods">
+            <PaymentMethods />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/cashier" element={
+          <ProtectedRoute isAuthenticated={isAuthenticated} role={userRole} path="/cashier">
+            <Cashier />
           </ProtectedRoute>
         } />
 
