@@ -8,25 +8,27 @@ datasource db {
 
 
 model User {
-  id           Int           @id @default(autoincrement())
-  email        String        @unique
-  password     String
-  name         String?
-  phone        String?
-  cedula       String?
-  fiatBalance  Float         @default(0.0)
-  cacaoBalance Float         @default(0.0)
+  id                Int               @id @default(autoincrement())
+  email             String            @unique
+  password          String
+  name              String?
+  phone             String?
+  cedula            String?
+  fiatBalance       Float             @default(0.0)
+  cacaoBalance      Float             @default(0.0)
   // Datos bancarios personales del usuario
-  bankCountry  String?
-  bankName     String?
-  bankAccount  String?
-  bankHolder   String?
-  bankType     String?       // "corriente" | "ahorro"
-  transactions Transaction[]
-  role         String        @default("user") // "admin" | "cajero" | "oficinista" | "user"
-  status       String        @default("active") // "active" | "blocked"
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  bankCountry       String?
+  bankName          String?
+  bankAccount       String?
+  bankHolder        String?
+  bankType          String?           // "corriente" | "ahorro"
+  transactions      Transaction[]
+  role              String            @default("user") // "admin" | "cajero" | "oficinista" | "user"
+  status            String            @default("active") // "active" | "blocked"
+  depositsAsUser    PhysicalDeposit[] @relation("UserDeposits")
+  depositsAsInspector PhysicalDeposit[] @relation("InspectorDeposits")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 }
 
 model BankOption {
@@ -87,19 +89,44 @@ model GlobalReserve {
 }
 
 model CollectionCenter {
-  id              Int      @id @default(autoincrement())
-  name            String   // Ejemplo: "Acopio Central Quevedo"
-  address         String   // Dirección textual
+  id              Int               @id @default(autoincrement())
+  name            String            // Ejemplo: "Acopio Central Quevedo"
+  address         String            // Dirección textual
   city            String
   phone           String?
-  managerName     String?  // Persona responsable
-  operatingHours  String   // Ejemplo: "Lun-Vie 08:00 - 17:00"
+  managerName     String?           // Persona responsable
+  operatingHours  String            // Ejemplo: "Lun-Vie 08:00 - 17:00"
   // Datos Geográficos
-  latitude        Float?   // Para posicionar el pin exactamente
+  latitude        Float?            // Para posicionar el pin exactamente
   longitude       Float?
-  googleMapsUrl   String?  // El link que se abrirá en el móvil (https://maps.google.com/...)
+  googleMapsUrl   String?           // El link que se abrirá en el móvil (https://maps.google.com/...)
   // Inventario local (Opcional pero recomendado)
-  currentStock    Float    @default(0) // Cuánto cacao físico hay en este centro específico  
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
+  currentStock    Float             @default(0) // Cuánto cacao físico hay en este centro específico  
+  isActive        Boolean           @default(true)
+  deposits        PhysicalDeposit[]
+  createdAt       DateTime          @default(now())
+}
+
+model PhysicalDeposit {
+  id                Int              @id @default(autoincrement())
+  userId            Int
+  user              User             @relation("UserDeposits", fields: [userId], references: [id])
+  centerId          Int
+  center            CollectionCenter @relation(fields: [centerId], references: [id])
+  inspectorId       Int
+  inspector         User             @relation("InspectorDeposits", fields: [inspectorId], references: [id])
+  
+  grossWeight       Float            // Peso bruto entregado
+  qualityGrade      String           // "PREMIUM", "GRADO_1", "GRADO_2"
+  moistureContent   Float            // % de humedad
+  fermentationGrade Float            // % de fermentación
+  impuritiesContent Float            // % de impurezas
+  
+  conversionFactor  Float            // E.g., 1.0 para Premium, 0.7 para Grado 2
+  finalTokensIssued Float            // Los gramos netos acreditados (grossWeight * conversionFactor con ajustes adicionales)
+  
+  status            String           @default("PENDING") // PENDING, VERIFIED, REJECTED
+  notes             String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 }

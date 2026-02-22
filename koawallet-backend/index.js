@@ -733,6 +733,145 @@ app.delete('/admin/collection-centers/:id', adminMiddleware, async (req, res) =>
   }
 });
 
+// ─── DEPÓSITOS FÍSICOS (ADMIN/INSPECTOR) ─────────────────────────────────────
+app.get('/admin/physical-deposits', adminMiddleware, async (req, res) => {
+  try {
+    const deposits = await prisma.physicalDeposit.findMany({
+      include: {
+        user: { select: { id: true, email: true, name: true } },
+        center: true,
+        inspector: { select: { id: true, email: true, name: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(deposits);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/admin/physical-deposits', adminMiddleware, async (req, res) => {
+  try {
+    const { userId, centerId, grossWeight, qualityGrade, moistureContent, fermentationGrade, impuritiesContent, notes } = req.body;
+
+    // Validaciones básicas
+    if (!userId || !centerId || !grossWeight || !qualityGrade) {
+      return res.status(400).json({ error: 'Faltan campos obligatorios' });
+    }
+
+    // Lógica de Factor de Conversión (Simplificada)
+    // Premium: 1.0, Grado 1: 0.9, Grado 2: 0.7
+    let conversionFactor = 0.7;
+    if (qualityGrade === 'PREMIUM') conversionFactor = 1.0;
+    else if (qualityGrade === 'GRADO_1') conversionFactor = 0.9;
+
+    // Ajuste adicional por humedad e impurezas (si superan umbrales)
+    // Supongamos: Humedad ideal 7%. Por cada punto arriba, restamos 1% del peso.
+    let moisturePenalty = moistureContent > 7 ? (moistureContent - 7) / 100 : 0;
+    let impuritiesPenalty = impuritiesContent / 100;
+
+    const finalFactor = conversionFactor * (1 - moisturePenalty) * (1 - impuritiesPenalty);
+    const finalTokens = parseFloat((grossWeight * finalFactor).toFixed(2));
+
+    const deposit = await prisma.physicalDeposit.create({
+      data: {
+        userId: parseInt(userId),
+        centerId: parseInt(centerId),
+        inspectorId: req.userId,
+        grossWeight: parseFloat(grossWeight),
+        qualityGrade,
+        moistureContent: parseFloat(moistureContent || 7),
+        fermentationGrade: parseFloat(fermentationGrade || 0),
+        impuritiesContent: parseFloat(impuritiesContent || 0),
+        conversionFactor: finalFactor,
+        finalTokensIssued: finalTokens,
+        status: 'PENDING',
+        notes: notes || null
+      }
+    });
+
+    res.status(201).json(deposit);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/admin/physical-deposits/:id/verify', adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body; // 'COMPLETED' o 'REJECTED'
+
+    if (!['COMPLETED', 'REJECTED'].includes(status)) {
+      return res.status(400).json({ error: 'Estado inválido' });
+    }
+
+    const deposit = await prisma.physicalDeposit.findUnique({
+      where: { id: parseInt(id) },
+      include: { user: true }
+    });
+
+    if (!deposit) return res.status(404).json({ error: 'Depósito no encontrado' });
+    if (deposit.status !== 'PENDING') return res.status(400).json({ error: 'El depósito ya ha sido procesado' });
+
+    if (status === 'REJECTED') {
+      const updated = await prisma.physicalDeposit.update({
+        where: { id: parseInt(id) },
+        data: { status: 'REJECTED' }
+      });
+      return res.json(updated);
+    }
+
+    // Si es COMPLETED (Aprobado)
+    const tokens = deposit.finalTokensIssued;
+    const config = await getSystemConfig();
+
+    // Transacción atómica
+    const result = await prisma.$transaction([
+      // 1. Marcar depósito como completado
+      prisma.physicalDeposit.update({
+        where: { id: parseInt(id) },
+        data: { status: 'COMPLETED' }
+      }),
+      // 2. Incrementar saldo del usuario
+      prisma.user.update({
+        where: { id: deposit.userId },
+        data: { cacaoBalance: { increment: tokens } }
+      }),
+      // 3. Crear registro de transacción
+      prisma.transaction.create({
+        data: {
+          userId: deposit.userId,
+          type: 'DEPOSIT_CACAO',
+          amount: tokens,
+          amountCacao: tokens,
+          amountUSD: parseFloat((tokens * config.buyPrice).toFixed(2)),
+          priceAt: config.buyPrice,
+          status: 'COMPLETED',
+          notes: `Tokenización de cacao físico (ID Depósito: ${id})`
+        }
+      }),
+      // 4. Actualizar Reserva Global
+      prisma.globalReserve.update({
+        where: { id: 1 },
+        data: {
+          totalCacaoStock: { increment: deposit.grossWeight }, // Guardamos el peso bruto en stock físico? O el neto? 
+          // Usualmente stock físico es lo que hay en bodega (bruto), tokensIssued es lo que se debe (neto/ajustado)
+          tokensIssued: { increment: tokens }
+        }
+      }),
+      // 5. Actualizar Stock del Centro de Acopio
+      prisma.collectionCenter.update({
+        where: { id: deposit.centerId },
+        data: { currentStock: { increment: deposit.grossWeight } }
+      })
+    ]);
+
+    res.json({ message: 'Depósito verificado y tokens emitidos', data: result[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── START ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Koawallet Backend corriendo en http://localhost:${PORT}`));

@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import UserManagement from './pages/UserManagement';
 import Configuration from './pages/Configuration';
 import CollectionCenters from './pages/CollectionCenters';
+import PhysicalDeposits from './pages/PhysicalDeposits';
 import './index.css';
 
 import { hasPermission } from './utils/permissions';
@@ -94,6 +95,12 @@ function App() {
         <Route path="/collection-centers" element={
           <ProtectedRoute isAuthenticated={isAuthenticated} role={userRole} path="/collection-centers">
             <CollectionCenters />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/physical-deposits" element={
+          <ProtectedRoute isAuthenticated={isAuthenticated} role={userRole} path="/physical-deposits">
+            <PhysicalDeposits />
           </ProtectedRoute>
         } />
 
