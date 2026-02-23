@@ -48,13 +48,14 @@ interface SystemConfig {
 interface Props {
     visible: boolean;
     type: 'DEPOSIT' | 'WITHDRAW';
+    userBalance?: number;
     onClose: () => void;
     onSuccess: () => void;
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function DepositWithdrawModal({ visible, type, onClose, onSuccess }: Props) {
+export default function DepositWithdrawModal({ visible, type, userBalance = 0, onClose, onSuccess }: Props) {
     const [step, setStep] = useState(1);
 
     // Shared data
@@ -215,6 +216,13 @@ export default function DepositWithdrawModal({ visible, type, onClose, onSuccess
             Alert.alert('Error', 'Selecciona una cuenta de destino');
             return;
         }
+
+        const grams = parseFloat(gramsAmount);
+        if (grams > userBalance) {
+            Alert.alert('Saldo insuficiente', `Tu saldo disponible es de ${userBalance.toFixed(4)}g. No puedes retirar ${grams.toFixed(4)}g.`);
+            return;
+        }
+
         setSubmitting(true);
         try {
             await api.post('/withdraw', {
@@ -767,7 +775,12 @@ export default function DepositWithdrawModal({ visible, type, onClose, onSuccess
                                     )}
                                 </View>
 
-                                <Text style={styles.fieldLabel}>Cantidad de gramos a vender</Text>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Text style={styles.fieldLabel}>Cantidad de gramos a vender</Text>
+                                    <TouchableOpacity onPress={() => setGramsAmount(userBalance.toString())}>
+                                        <Text style={{ color: Colors.gold, fontSize: 12, fontWeight: '700' }}>MÁXIMO: {userBalance.toFixed(4)}g</Text>
+                                    </TouchableOpacity>
+                                </View>
                                 <TextInput
                                     style={styles.amountInput}
                                     placeholder="Ej: 250.00"

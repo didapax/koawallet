@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
-import { ClipboardList, CheckCircle, XCircle, Eye, ChevronLeft, Loader2, MessageSquare, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { ClipboardList, CheckCircle, XCircle, X, Eye, ChevronLeft, Loader2, MessageSquare, ExternalLink, Image as ImageIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 

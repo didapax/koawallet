@@ -59,7 +59,11 @@ export default function DashboardScreen() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 15000); // Poll every 15s
+    return () => clearInterval(interval);
+  }, [fetchData]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -168,6 +172,7 @@ export default function DashboardScreen() {
         <DepositWithdrawModal
           visible={!!modalType}
           type={modalType}
+          userBalance={balance?.cacao || 0}
           onClose={() => setModalType(null)}
           onSuccess={() => { setModalType(null); fetchData(); }}
         />
