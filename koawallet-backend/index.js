@@ -985,8 +985,11 @@ app.get('/admin/transactions/pending', adminMiddleware, async (req, res) => {
         type: { in: ['BUY', 'SELL', 'DEPOSIT_CACAO', 'WITHDRAW_USD', 'DEPOSIT_USD', 'WITHDRAW_CACAO'] }
       },
       include: {
-        user: { select: { id: true, name: true, email: true } },
-        paymentMethod: true
+        user: { select: { id: true, name: true, email: true, phone: true, cedula: true } },
+        paymentMethod: true,
+        userPaymentMethod: {
+          include: { paymentMethod: true }
+        }
       },
       orderBy: { createdAt: 'asc' }
     });

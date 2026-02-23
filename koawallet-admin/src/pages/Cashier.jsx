@@ -19,7 +19,7 @@ const Cashier = () => {
 
     useEffect(() => {
         fetchQueue();
-        const interval = setInterval(fetchQueue, 30000); // Poll every 30s
+        const interval = setInterval(fetchQueue, 10000); // Poll every 10s
         return () => clearInterval(interval);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -153,31 +153,67 @@ const Cashier = () => {
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginBottom: '30px' }}>
                                 <div>
-                                    <h4 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase' }}>Datos del Pago</h4>
-                                    <div style={{ padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px' }}>
-                                        <p style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
-                                            {selectedTx.fiatAmount} {selectedTx.paymentMethod?.currency}
-                                        </p>
-                                        <p style={{ fontSize: '0.9rem' }}>{selectedTx.paymentMethod?.name}</p>
-                                        <p style={{ fontSize: '0.8rem', color: 'var(--primary)', marginTop: '5px' }}>Referencia: {selectedTx.reference || 'N/A'}</p>
+                                    <h4 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase' }}>Datos del Usuario</h4>
+                                    <div style={{ padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', fontSize: '0.9rem' }}>
+                                        <p><strong>Nombre:</strong> {selectedTx.user.name}</p>
+                                        <p><strong>Cédula:</strong> {selectedTx.user.cedula || 'N/A'}</p>
+                                        <p><strong>Teléfono:</strong> {selectedTx.user.phone || 'N/A'}</p>
+                                        <p><strong>Email:</strong> {selectedTx.user.email}</p>
                                     </div>
                                 </div>
                                 <div>
-                                    <h4 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase' }}>Comprobante</h4>
+                                    <h4 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase' }}>
+                                        {selectedTx.type === 'SELL' ? 'Datos para Transferencia' : 'Datos del Pago'}
+                                    </h4>
+                                    <div style={{ padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px' }}>
+                                        <p style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
+                                            {selectedTx.fiatAmount} {selectedTx.paymentMethod?.currency || selectedTx.userPaymentMethod?.paymentMethod?.currency}
+                                        </p>
+
+                                        {selectedTx.type === 'SELL' && selectedTx.userPaymentMethod ? (
+                                            <div style={{ fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                <p><strong>Método:</strong> {selectedTx.userPaymentMethod.paymentMethod.name}</p>
+                                                {selectedTx.userPaymentMethod.paymentMethod.type === 'FIAT' ? (
+                                                    <>
+                                                        <p><strong>Banco:</strong> {selectedTx.userPaymentMethod.bankName}</p>
+                                                        <p><strong>Titular:</strong> {selectedTx.userPaymentMethod.accountHolder}</p>
+                                                        <p><strong>Cuenta/Tel:</strong> <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{selectedTx.userPaymentMethod.accountNumber}</span></p>
+                                                        {selectedTx.userPaymentMethod.accountType && <p><strong>Tipo:</strong> {selectedTx.userPaymentMethod.accountType}</p>}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <p><strong>Red:</strong> {selectedTx.userPaymentMethod.accountType || selectedTx.userPaymentMethod.paymentMethod.details?.Red || 'TRC20'}</p>
+                                                        <p><strong>Wallet:</strong> <span style={{ color: 'var(--primary)', fontWeight: 600, wordBreak: 'break-all' }}>{selectedTx.userPaymentMethod.accountNumber}</span></p>
+                                                    </>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <p style={{ fontSize: '0.9rem' }}>{selectedTx.paymentMethod?.name}</p>
+                                                <p style={{ fontSize: '0.8rem', color: 'var(--primary)', marginTop: '5px' }}>Referencia: {selectedTx.reference || 'N/A'}</p>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {selectedTx.type !== 'SELL' && (
+                                <div style={{ marginBottom: '30px' }}>
+                                    <h4 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase' }}>Comprobante Adjunto</h4>
                                     {selectedTx.receiptImage ? (
-                                        <div style={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', height: '100px', cursor: 'pointer' }} onClick={() => window.open(selectedTx.receiptImage)}>
+                                        <div style={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', height: '150px', cursor: 'pointer', border: '1px solid var(--glass-border)' }} onClick={() => window.open(selectedTx.receiptImage)}>
                                             <img src={selectedTx.receiptImage} alt="Receipt" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                <ImageIcon size={24} />
+                                                <ImageIcon size={32} />
                                             </div>
                                         </div>
                                     ) : (
-                                        <div style={{ height: '100px', border: '2px dashed var(--glass-border)', borderRadius: '12px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '10px' }}>
-                                            <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Sin imagen adjunta.<br />Validar por referencia manual.</p>
+                                        <div style={{ height: '80px', border: '1px dashed var(--glass-border)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '10px' }}>
+                                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Sin imagen adjunta. Validar por referencia manual.</p>
                                         </div>
                                     )}
                                 </div>
-                            </div>
+                            )}
 
                             <div style={{ marginBottom: '30px' }}>
                                 <label className="label">Notas del Administrador (opcional)</label>
