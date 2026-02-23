@@ -34,6 +34,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="historial"
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon iconName={focused ? "receipt" : "receipt-outline"} label="Historial" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="perfil"
         options={{
           tabBarIcon: ({ focused }) => <TabIcon iconName={focused ? "person" : "person-outline"} label="Perfil" focused={focused} />,

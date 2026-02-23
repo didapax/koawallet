@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'expo-router';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   RefreshControl, Alert
@@ -39,6 +40,7 @@ const TX_LABELS: Record<string, { label: string; sign: string; color: string }> 
 };
 
 export default function DashboardScreen() {
+  const router = useRouter();
   const { user, logout } = useAuth();
   const [balance, setBalance] = useState<Balance | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -67,7 +69,7 @@ export default function DashboardScreen() {
         api.get('/transactions'),
       ]);
       setBalance(balRes.data);
-      setTransactions(txRes.data.slice(0, 10));
+      setTransactions(txRes.data.slice(0, 5));
     } catch (err: any) {
       Alert.alert('Error', err.message);
     }
@@ -152,7 +154,12 @@ export default function DashboardScreen() {
       </View>
 
       {/* Historial */}
-      <Text style={styles.sectionTitle}>Movimientos recientes</Text>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Movimientos recientes</Text>
+        <TouchableOpacity onPress={() => router.push('/historial')}>
+          <Text style={styles.viewAllText}>Ver todo</Text>
+        </TouchableOpacity>
+      </View>
 
       {transactions.length === 0 ? (
         <View style={styles.emptyBox}>
@@ -239,7 +246,9 @@ const styles = StyleSheet.create({
   },
 
   // Transactions
-  sectionTitle: { ...Typography.bodyBold, color: Colors.textSecondary, marginBottom: Spacing.md, textTransform: 'uppercase', letterSpacing: 1, fontSize: 12 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
+  sectionTitle: { ...Typography.bodyBold, color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1, fontSize: 12 },
+  viewAllText: { ...Typography.xs, color: Colors.gold, fontWeight: '700' },
   emptyBox: { backgroundColor: Colors.surface, borderRadius: 16, padding: Spacing.xl, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
   emptyText: { ...Typography.body, color: Colors.textMuted, fontWeight: '600' },
   emptySubText: { ...Typography.sm, color: Colors.textMuted, marginTop: 4 },
