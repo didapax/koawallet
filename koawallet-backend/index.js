@@ -209,6 +209,7 @@ app.post('/deposit', authMiddleware, async (req, res) => {
     }
 
     if (!type) return res.status(400).json({ error: 'Tipo de transacción requerido' });
+    console.log(`[DEPOSIT] Request for ${type}:`, JSON.stringify(req.body));
     const config = await getSystemConfig();
 
     // ── Flujo de COMPRA (BUY): Usuario paga en fiat y recibe gramos ─────────────
@@ -234,6 +235,15 @@ app.post('/deposit', authMiddleware, async (req, res) => {
       }
 
       if (gramsAmount <= 0) return res.status(400).json({ error: 'Monto insuficiente para calcular gramos' });
+
+      // Verificación de Stock Administrativamente Disponible para Venta
+      const reserve = await getGlobalReserve();
+      const available = Math.max(0, reserve.totalCacaoStock - reserve.tokensIssued);
+      if (gramsAmount > available) {
+        return res.status(400).json({
+          error: `Lo sentimos, no hay suficiente cacao disponible para la venta en este momento (Disponible: ${available.toFixed(2)}g)`
+        });
+      }
 
       const tx = await prisma.transaction.create({
         data: {
@@ -1049,6 +1059,14 @@ app.post('/admin/transactions/:id/approve', adminMiddleware, async (req, res) =>
       if (tx.type === 'BUY') {
         // Compra: El usuario paga FIAT y recibe Gramos (Tokens)
         const grams = tx.gramsAmount || (tx.fiatAmount / tx.cacaoPriceUSD);
+
+        // Volver a verificar stock al momento de aprobar
+        const reserve = await getGlobalReserve();
+        const available = Math.max(0, reserve.totalCacaoStock - reserve.tokensIssued);
+        if (grams > available) {
+          throw new Error(`Stock insuficiente para aprobar esta compra. Disponible: ${available.toFixed(2)}g, Requerido: ${grams.toFixed(2)}g`);
+        }
+
         await p.user.update({
           where: { id: tx.userId },
           data: { cacaoBalance: { increment: grams } }

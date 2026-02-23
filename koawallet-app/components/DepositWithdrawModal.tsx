@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
-    View, Text, Modal, StyleSheet, TouchableOpacity, ScrollView,
-    TextInput, Alert, ActivityIndicator, Linking
+    View, Text, StyleSheet, TouchableOpacity, ScrollView,
+    TextInput, ActivityIndicator, Linking, Modal
 } from 'react-native';
 import { Colors, Typography, Spacing } from '../constants/Colors';
 import api from '../utils/api';
+import StatusAlert from './ui/StatusAlert';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,19 @@ export default function DepositWithdrawModal({ visible, type, userBalance = 0, o
     const [editPassword, setEditPassword] = useState('');
     const [savingAccount, setSavingAccount] = useState(false);
 
+    // Spectacular Alert State
+    const [alertVisible, setAlertVisible] = useState(false);
+    const [alertConfig, setAlertConfig] = useState<{
+        type: 'success' | 'error' | 'warning';
+        title: string;
+        message: string;
+    }>({ type: 'success', title: '', message: '' });
+
+    const showAlert = (type: 'success' | 'error' | 'warning', title: string, message: string) => {
+        setAlertConfig({ type, title, message });
+        setAlertVisible(true);
+    };
+
     useEffect(() => {
         if (visible) {
             resetAll();
@@ -159,7 +173,7 @@ export default function DepositWithdrawModal({ visible, type, userBalance = 0, o
 
     const handleBuySubmit = async () => {
         if (!selectedPayMethod || !fiatAmount || parseFloat(fiatAmount) <= 0) {
-            Alert.alert('Error', 'Ingresa un monto válido');
+            showAlert('error', 'Monto Inválido', 'Por favor ingresa un monto válido para continuar.');
             return;
         }
         setSubmitting(true);
@@ -171,11 +185,23 @@ export default function DepositWithdrawModal({ visible, type, userBalance = 0, o
                 reference: reference || null,
                 notes: notes || null,
             });
-            Alert.alert('✅ Solicitud enviada',
+            showAlert('success', '✅ Solicitud enviada',
                 `Tu compra está pendiente de confirmación por el cajero. Los gramos serán acreditados una vez verificado el pago.\n\nGramos estimados: ${calcGrams().toFixed(4)}g`);
-            onSuccess();
+
+            // Cerrar después de un tiempo o dejar que el usuario lo haga
+            setTimeout(() => {
+                if (alertVisible) {
+                    setAlertVisible(false);
+                    onSuccess();
+                }
+            }, 3000);
         } catch (err: any) {
-            Alert.alert('Error', err.response?.data?.error || err.message);
+            const errorMsg = err.response?.data?.error || err.message;
+            if (errorMsg.includes('no hay suficiente cacao')) {
+                showAlert('warning', 'Mercado no disponible', 'Lo sentimos, no hay suficiente cacao disponible para la venta en este momento. Intente más tarde.');
+            } else {
+                showAlert('error', 'Error en la operación', errorMsg);
+            }
         } finally {
             setSubmitting(false);
         }
@@ -183,7 +209,7 @@ export default function DepositWithdrawModal({ visible, type, userBalance = 0, o
 
     const handleAddAccount = async () => {
         if (!newAccountHolder || !newAccountNumber || !withdrawPayMethod) {
-            Alert.alert('Error', 'Completa todos los campos requeridos');
+            showAlert('error', 'Campos incompletos', 'Completa todos los campos requeridos para registrar tu cuenta.');
             return;
         }
         setSavingAccount(true);
@@ -200,8 +226,9 @@ export default function DepositWithdrawModal({ visible, type, userBalance = 0, o
             setSelectedUserMethod(res.data);
             setAddingAccount(false);
             setStep(3);
+            showAlert('success', 'Cuenta guardada', 'Tu cuenta ha sido registrada exitosamente.');
         } catch (err: any) {
-            Alert.alert('Error', err.response?.data?.error || err.message);
+            showAlert('error', 'Error al guardar', err.response?.data?.error || err.message);
         } finally {
             setSavingAccount(false);
         }
@@ -209,17 +236,17 @@ export default function DepositWithdrawModal({ visible, type, userBalance = 0, o
 
     const handleSellSubmit = async () => {
         if (!gramsAmount || parseFloat(gramsAmount) <= 0) {
-            Alert.alert('Error', 'Ingresa una cantidad de gramos válida');
+            showAlert('error', 'Cantidad inválida', 'Ingresa una cantidad de gramos válida para vender.');
             return;
         }
         if (!selectedUserMethod) {
-            Alert.alert('Error', 'Selecciona una cuenta de destino');
+            showAlert('error', 'Cuenta requerida', 'Selecciona una cuenta de destino para recibir tu pago.');
             return;
         }
 
         const grams = parseFloat(gramsAmount);
         if (grams > userBalance) {
-            Alert.alert('Saldo insuficiente', `Tu saldo disponible es de ${userBalance.toFixed(4)}g. No puedes retirar ${grams.toFixed(4)}g.`);
+            showAlert('warning', 'Saldo insuficiente', `Tu saldo disponible es de ${userBalance.toFixed(4)}g. No puedes vender ${grams.toFixed(4)}g.`);
             return;
         }
 
@@ -231,11 +258,17 @@ export default function DepositWithdrawModal({ visible, type, userBalance = 0, o
                 userPaymentMethodId: selectedUserMethod.id,
                 notes: notes || null,
             });
-            Alert.alert('✅ Solicitud de venta enviada',
+            showAlert('success', '✅ Venta registrada',
                 `${gramsAmount}g de cacao han sido bloqueados. Un cajero procesará el pago a tu cuenta.\n\nMonto estimado: ${calcWithdrawFiat()}`);
-            onSuccess();
+
+            setTimeout(() => {
+                if (alertVisible) {
+                    setAlertVisible(false);
+                    onSuccess();
+                }
+            }, 3000);
         } catch (err: any) {
-            Alert.alert('Error', err.response?.data?.error || err.message);
+            showAlert('error', 'Error en la venta', err.response?.data?.error || err.message);
         } finally {
             setSubmitting(false);
         }
@@ -824,6 +857,20 @@ export default function DepositWithdrawModal({ visible, type, userBalance = 0, o
 
                     </ScrollView>
                 )}
+                <StatusAlert
+                    visible={alertVisible}
+                    type={alertConfig.type}
+                    title={alertConfig.title}
+                    message={alertConfig.message}
+                    onClose={() => {
+                        setAlertVisible(false);
+                        // Si era un éxito y es una transacción finalizada, cerramos el modal
+                        if (alertConfig.type === 'success' &&
+                            (alertConfig.title.includes('enviada') || alertConfig.title.includes('registrada'))) {
+                            onSuccess();
+                        }
+                    }}
+                />
             </View>
         </Modal>
     );
