@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../utils/api';
 
@@ -6,6 +6,8 @@ interface User {
     id: number;
     email: string;
     name?: string;
+    phone?: string;
+    cedula?: string;
 }
 
 interface AuthContextType {
@@ -15,6 +17,7 @@ interface AuthContextType {
     login: (email: string, password: string) => Promise<void>;
     register: (email: string, password: string, name: string) => Promise<void>;
     logout: () => Promise<void>;
+    updateUser: (data: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,11 +27,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [token, setToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
-        checkStoredToken();
-    }, []);
 
-    const checkStoredToken = async () => {
+    const checkStoredToken = useCallback(async () => {
         try {
             const stored = await AsyncStorage.getItem('koa_token');
             const storedUser = await AsyncStorage.getItem('koa_user');
@@ -38,35 +38,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         } catch { }
         setIsLoading(false);
-    };
+    }, []);
 
-    const login = async (email: string, password: string) => {
+    const login = useCallback(async (email: string, password: string) => {
         const res = await api.post('/auth/login', { email, password });
         const { token: t, user: u } = res.data;
         await AsyncStorage.setItem('koa_token', t);
         await AsyncStorage.setItem('koa_user', JSON.stringify(u));
         setToken(t);
         setUser(u);
-    };
+    }, []);
 
-    const register = async (email: string, password: string, name: string) => {
+    const register = useCallback(async (email: string, password: string, name: string) => {
         const res = await api.post('/auth/register', { email, password, name });
         const { token: t, user: u } = res.data;
         await AsyncStorage.setItem('koa_token', t);
         await AsyncStorage.setItem('koa_user', JSON.stringify(u));
         setToken(t);
         setUser(u);
-    };
+    }, []);
 
-    const logout = async () => {
+    const logout = useCallback(async () => {
         await AsyncStorage.removeItem('koa_token');
         await AsyncStorage.removeItem('koa_user');
         setToken(null);
         setUser(null);
-    };
+    }, []);
+
+    const updateUser = useCallback(async (data: Partial<User>) => {
+        setUser(prev => {
+            if (!prev) return null;
+            const updatedUser = { ...prev, ...data };
+            AsyncStorage.setItem('koa_user', JSON.stringify(updatedUser)); // Safe to not await here as it's async persistence
+            return updatedUser;
+        });
+    }, []);
+
+    useEffect(() => {
+        checkStoredToken();
+    }, [checkStoredToken]);
 
     return (
-        <AuthContext.Provider value={{ user, token, isLoading, login, register, logout }}>
+        <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, updateUser }}>
             {children}
         </AuthContext.Provider>
     );

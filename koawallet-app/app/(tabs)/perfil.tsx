@@ -45,7 +45,7 @@ const Field = ({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function PerfilScreen() {
-    const { logout } = useAuth();
+    const { logout, updateUser } = useAuth();
     const [profile, setProfile] = useState<Profile | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -65,12 +65,14 @@ export default function PerfilScreen() {
             setName(p.name || '');
             setPhone(p.phone || '');
             setCedula(p.cedula || '');
+            // Sincronizar con AuthContext
+            await updateUser({ name: p.name, phone: p.phone, cedula: p.cedula });
         } catch (err: any) {
             Alert.alert('Error', err.message);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [updateUser]);
 
     useEffect(() => {
         fetchProfile();
@@ -80,6 +82,7 @@ export default function PerfilScreen() {
         setSaving(true);
         try {
             await api.put('/profile', { name, phone, cedula });
+            await updateUser({ name, phone, cedula });
             Alert.alert('✅ Perfil actualizado');
             setEditMode(false);
             fetchProfile();

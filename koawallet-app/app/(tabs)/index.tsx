@@ -45,6 +45,20 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [modalType, setModalType] = useState<'DEPOSIT' | 'WITHDRAW' | null>(null);
 
+  const isProfileComplete = user?.name && user?.phone && user?.cedula;
+
+  const handleAction = (type: 'DEPOSIT' | 'WITHDRAW') => {
+    if (!isProfileComplete) {
+      Alert.alert(
+        'Perfil Incompleto',
+        'Para realizar operaciones de depósito o retiro, primero debes completar tus datos personales (Nombre, Cédula y Teléfono) en la pestaña de Perfil.',
+        [{ text: 'Entendido' }]
+      );
+      return;
+    }
+    setModalType(type);
+  };
+
 
   const fetchData = useCallback(async () => {
     try {
@@ -116,7 +130,7 @@ export default function DashboardScreen() {
 
       {/* Botones de acción */}
       <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.specBtn} onPress={() => setModalType('DEPOSIT')}>
+        <TouchableOpacity style={styles.specBtn} onPress={() => handleAction('DEPOSIT')}>
           <LinearGradient
             colors={[Colors.gold, '#D4AF37']}
             style={styles.specBtnGradient}
@@ -126,7 +140,7 @@ export default function DashboardScreen() {
           </LinearGradient>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.specBtn} onPress={() => setModalType('WITHDRAW')}>
+        <TouchableOpacity style={styles.specBtn} onPress={() => handleAction('WITHDRAW')}>
           <LinearGradient
             colors={['#2A2A2A', '#1A1A1A']}
             style={[styles.specBtnGradient, { borderColor: Colors.border, borderWidth: 1 }]}

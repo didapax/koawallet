@@ -98,6 +98,15 @@ async function adminMiddleware(req, res, next) {
   }
 }
 
+async function isProfileComplete(userId) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, phone: true, cedula: true }
+  });
+  if (!user) return false;
+  return !!(user.name && user.phone && user.cedula);
+}
+
 // ─── AUTH ──────────────────────────────────────────────────────────────────────
 app.post('/auth/register', async (req, res) => {
   try {
@@ -115,7 +124,7 @@ app.post('/auth/register', async (req, res) => {
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({
       token,
-      user: { id: user.id, email: user.email, name: user.name }
+      user: { id: user.id, email: user.email, name: user.name, phone: user.phone, cedula: user.cedula }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -138,7 +147,7 @@ app.post('/auth/login', async (req, res) => {
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
     res.json({
       token,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role }
+      user: { id: user.id, email: user.email, name: user.name, phone: user.phone, cedula: user.cedula, role: user.role }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -194,6 +203,10 @@ app.get('/balance', authMiddleware, async (req, res) => {
 app.post('/deposit', authMiddleware, async (req, res) => {
   try {
     const { type, amount, method, bankOptionId, notes, paymentMethodId, fiatAmount, reference } = req.body;
+
+    if (!await isProfileComplete(req.userId)) {
+      return res.status(403).json({ error: 'Debes completar tu perfil (Nombre, Cédula y Teléfono) antes de realizar depósitos o compras.' });
+    }
 
     if (!type) return res.status(400).json({ error: 'Tipo de transacción requerido' });
     const config = await getSystemConfig();
@@ -297,6 +310,11 @@ app.post('/deposit', authMiddleware, async (req, res) => {
 app.post('/withdraw', authMiddleware, async (req, res) => {
   try {
     const { type, amount, method, bankOptionId, notes, gramsAmount, userPaymentMethodId } = req.body;
+
+    if (!await isProfileComplete(req.userId)) {
+      return res.status(403).json({ error: 'Debes completar tu perfil (Nombre, Cédula y Teléfono) antes de realizar retiros o ventas.' });
+    }
+
     if (!type) return res.status(400).json({ error: 'Tipo de transacción requerido' });
 
     const config = await getSystemConfig();
@@ -423,6 +441,11 @@ app.post('/withdraw', authMiddleware, async (req, res) => {
 app.post('/convert', authMiddleware, async (req, res) => {
   try {
     const { type, amount } = req.body;
+
+    if (!await isProfileComplete(req.userId)) {
+      return res.status(403).json({ error: 'Debes completar tu perfil (Nombre, Cédula y Teléfono) antes de realizar conversiones.' });
+    }
+
     if (!type || !amount || amount <= 0) return res.status(400).json({ error: 'Datos inválidos' });
 
     const config = await getSystemConfig();
