@@ -193,11 +193,64 @@ app.get('/balance', authMiddleware, async (req, res) => {
 // ─── DEPOSITAR ─────────────────────────────────────────────────────────────────
 app.post('/deposit', authMiddleware, async (req, res) => {
   try {
-    const { type, amount, method, bankOptionId, notes } = req.body;
-    // type: "DEPOSIT_CACAO" | "DEPOSIT_USD"
-    if (!type || !amount || amount <= 0) return res.status(400).json({ error: 'Datos inválidos' });
+    const { type, amount, method, bankOptionId, notes, paymentMethodId, fiatAmount, reference } = req.body;
 
+    if (!type) return res.status(400).json({ error: 'Tipo de transacción requerido' });
     const config = await getSystemConfig();
+
+    // ── Flujo de COMPRA (BUY): Usuario paga en fiat y recibe gramos ─────────────
+    if (type === 'BUY') {
+      if (!paymentMethodId || !fiatAmount || parseFloat(fiatAmount) <= 0) {
+        return res.status(400).json({ error: 'Monto y método de pago requeridos' });
+      }
+
+      const pm = await prisma.paymentMethod.findUnique({ where: { id: parseInt(paymentMethodId) } });
+      if (!pm || !pm.isActive) return res.status(400).json({ error: 'Método de pago no disponible' });
+
+      const cacaoPriceUSD = config.buyPrice;
+      const exchangeRate = config.usdVesRate;
+      const parsedFiat = parseFloat(fiatAmount);
+
+      // Calcular gramos según la moneda del método
+      let gramsAmount;
+      if (pm.currency === 'VES') {
+        gramsAmount = parseFloat(((parsedFiat / exchangeRate) / cacaoPriceUSD).toFixed(4));
+      } else {
+        // USD, USDT u otro
+        gramsAmount = parseFloat((parsedFiat / cacaoPriceUSD).toFixed(4));
+      }
+
+      if (gramsAmount <= 0) return res.status(400).json({ error: 'Monto insuficiente para calcular gramos' });
+
+      const tx = await prisma.transaction.create({
+        data: {
+          userId: req.userId,
+          type: 'BUY',
+          amount: gramsAmount,
+          fiatAmount: parsedFiat,
+          gramsAmount,
+          cacaoPriceUSD,
+          exchangeRate: pm.currency === 'VES' ? exchangeRate : 1,
+          amountUSD: pm.currency === 'VES' ? parseFloat((parsedFiat / exchangeRate).toFixed(2)) : parsedFiat,
+          amountCacao: gramsAmount,
+          paymentMethodId: parseInt(paymentMethodId),
+          reference: reference || null,
+          notes: notes || null,
+          status: 'PENDING',
+        }
+      });
+
+      return res.status(201).json({
+        message: 'Solicitud de compra registrada. Pendiente de confirmación por el cajero.',
+        transactionId: tx.id,
+        gramsAmount,
+        estimatedUSD: pm.currency === 'VES' ? parseFloat((parsedFiat / exchangeRate).toFixed(2)) : parsedFiat,
+      });
+    }
+
+    // ── Flujo legado (DEPOSIT_USD / DEPOSIT_CACAO) ────────────────────────────
+    if (!amount || parseFloat(amount) <= 0) return res.status(400).json({ error: 'Datos inválidos' });
+
     const price = await getCacaoPrice(type === 'DEPOSIT_CACAO' ? 'buy' : 'sell');
     let dataUpdate = {};
     let txData = {
@@ -211,22 +264,15 @@ app.post('/deposit', authMiddleware, async (req, res) => {
     };
 
     if (type === 'DEPOSIT_USD') {
-      // Al depositar USD, podríamos restar una tasa de red si aplica, pero usualmente es en retiros/conversiones
       dataUpdate = { fiatBalance: { increment: parseFloat(amount) } };
       txData.amountUSD = parseFloat(amount);
     } else if (type === 'DEPOSIT_CACAO') {
       dataUpdate = { cacaoBalance: { increment: parseFloat(amount) } };
       txData.amountCacao = parseFloat(amount);
       txData.amountUSD = parseFloat((amount * price).toFixed(2));
-
-      // Al depositar cacao (físico o digital), incrementamos la reserva
-      // Nota: Si el usuario trae cacao físico, incrementamos tanto el stock como los tokens emitidos
       await prisma.globalReserve.update({
         where: { id: 1 },
-        data: {
-          totalCacaoStock: { increment: parseFloat(amount) },
-          tokensIssued: { increment: parseFloat(amount) }
-        }
+        data: { totalCacaoStock: { increment: parseFloat(amount) }, tokensIssued: { increment: parseFloat(amount) } }
       });
     } else {
       return res.status(400).json({ error: 'Tipo de depósito inválido' });
@@ -234,10 +280,7 @@ app.post('/deposit', authMiddleware, async (req, res) => {
 
     const user = await prisma.user.update({
       where: { id: req.userId },
-      data: {
-        ...dataUpdate,
-        transactions: { create: txData }
-      }
+      data: { ...dataUpdate, transactions: { create: txData } }
     });
 
     res.json({
@@ -253,30 +296,95 @@ app.post('/deposit', authMiddleware, async (req, res) => {
 // ─── RETIRAR ───────────────────────────────────────────────────────────────────
 app.post('/withdraw', authMiddleware, async (req, res) => {
   try {
-    const { type, amount, method, bankOptionId, notes } = req.body;
-    if (!type || !amount || amount <= 0) return res.status(400).json({ error: 'Datos inválidos' });
+    const { type, amount, method, bankOptionId, notes, gramsAmount, userPaymentMethodId } = req.body;
+    if (!type) return res.status(400).json({ error: 'Tipo de transacción requerido' });
 
     const config = await getSystemConfig();
+
+    // ── Flujo de VENTA (SELL): Usuario vende gramos y recibe dinero en su cuenta ─
+    if (type === 'SELL') {
+      if (!gramsAmount || parseFloat(gramsAmount) <= 0) {
+        return res.status(400).json({ error: 'Cantidad de gramos requerida' });
+      }
+      if (!userPaymentMethodId) {
+        return res.status(400).json({ error: 'Cuenta de destino requerida' });
+      }
+
+      const grams = parseFloat(gramsAmount);
+      const user = await prisma.user.findUnique({ where: { id: req.userId } });
+      if (user.cacaoBalance < grams) {
+        return res.status(400).json({ error: `Saldo de cacao insuficiente (disponible: ${user.cacaoBalance.toFixed(4)}g)` });
+      }
+
+      const upm = await prisma.userPaymentMethod.findUnique({
+        where: { id: parseInt(userPaymentMethodId) },
+        include: { paymentMethod: true }
+      });
+      if (!upm || upm.userId !== req.userId) {
+        return res.status(400).json({ error: 'Cuenta de destino no válida' });
+      }
+
+      const cacaoPriceUSD = config.sellPrice;
+      const exchangeRate = config.usdVesRate;
+      const amountUSD = parseFloat((grams * cacaoPriceUSD).toFixed(2));
+
+      // Bloquear gramos del usuario
+      await prisma.user.update({
+        where: { id: req.userId },
+        data: {
+          cacaoBalance: { decrement: grams },
+          cacaoLocked: { increment: grams }
+        }
+      });
+
+      const tx = await prisma.transaction.create({
+        data: {
+          userId: req.userId,
+          type: 'SELL',
+          amount: grams,
+          gramsAmount: grams,
+          cacaoPriceUSD,
+          exchangeRate: upm.paymentMethod.currency === 'VES' ? exchangeRate : 1,
+          amountCacao: grams,
+          amountUSD,
+          fiatAmount: upm.paymentMethod.currency === 'VES'
+            ? parseFloat((amountUSD * exchangeRate).toFixed(2))
+            : amountUSD,
+          userPaymentMethodId: parseInt(userPaymentMethodId),
+          notes: notes || null,
+          status: 'PENDING',
+        }
+      });
+
+      const updatedUser = await prisma.user.findUnique({ where: { id: req.userId } });
+      return res.status(201).json({
+        message: 'Solicitud de venta registrada. Los gramos han sido bloqueados. Un cajero procesará el pago.',
+        transactionId: tx.id,
+        gramsLocked: grams,
+        estimatedUSD: amountUSD,
+        cacao: updatedUser.cacaoBalance,
+        cacaoLocked: updatedUser.cacaoLocked,
+      });
+    }
+
+    // ── Flujo legado WITHDRAW_USD / WITHDRAW_CACAO ────────────────────────────
+    if (!amount || parseFloat(amount) <= 0) return res.status(400).json({ error: 'Datos inválidos' });
+
     const price = await getCacaoPrice(type === 'WITHDRAW_CACAO' ? 'sell' : 'buy');
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
-
-    // Aplicar tasa de red al retiro en USD
     const networkFee = config.networkFee;
     const totalToDebitUSD = type === 'WITHDRAW_USD' ? parseFloat(amount) + networkFee : 0;
 
-    // Validar saldo suficiente
     if (type === 'WITHDRAW_USD' && user.fiatBalance < totalToDebitUSD) {
       return res.status(400).json({ error: `Saldo USD insuficiente (requiere ${totalToDebitUSD} incl. tasa)` });
     }
-    if (type === 'WITHDRAW_CACAO' && user.cacaoBalance < amount) {
+    if (type === 'WITHDRAW_CACAO' && user.cacaoBalance < parseFloat(amount)) {
       return res.status(400).json({ error: 'Saldo de cacao insuficiente' });
     }
 
     let dataUpdate = {};
     let txData = {
-      type,
-      amount: parseFloat(amount),
-      priceAt: price,
+      type, amount: parseFloat(amount), priceAt: price,
       method: method || null,
       bankOptionId: bankOptionId ? parseInt(bankOptionId) : null,
       notes: notes || (type === 'WITHDRAW_USD' ? `Tasa de red: ${networkFee} USD` : null),
@@ -287,24 +395,17 @@ app.post('/withdraw', authMiddleware, async (req, res) => {
       dataUpdate = { fiatBalance: { decrement: totalToDebitUSD } };
       txData.amountUSD = parseFloat(amount);
     } else if (type === 'WITHDRAW_CACAO') {
-      // Cambio solicitado: Mover a cacaoLocked para evitar doble gasto
-      dataUpdate = {
-        cacaoBalance: { decrement: parseFloat(amount) },
-        cacaoLocked: { increment: parseFloat(amount) }
-      };
+      dataUpdate = { cacaoBalance: { decrement: parseFloat(amount) }, cacaoLocked: { increment: parseFloat(amount) } };
       txData.amountCacao = parseFloat(amount);
-      txData.amountUSD = parseFloat((amount * price).toFixed(2));
-      txData.gramsAmount = parseFloat(amount); // Usar nuevo campo para consistencia P2P
+      txData.amountUSD = parseFloat((parseFloat(amount) * price).toFixed(2));
+      txData.gramsAmount = parseFloat(amount);
     } else {
       return res.status(400).json({ error: 'Tipo de retiro inválido' });
     }
 
     const updated = await prisma.user.update({
       where: { id: req.userId },
-      data: {
-        ...dataUpdate,
-        transactions: { create: txData }
-      }
+      data: { ...dataUpdate, transactions: { create: txData } }
     });
 
     res.json({
@@ -412,6 +513,24 @@ app.get('/banks', async (req, res) => {
   }
 });
 
+// ─── CENTROS DE ACOPIO (PÚBLICO) ───────────────────────────────────────────────
+app.get('/collection-centers', async (req, res) => {
+  try {
+    const centers = await prisma.collectionCenter.findMany({
+      where: { isActive: true },
+      select: {
+        id: true, name: true, address: true, city: true, phone: true,
+        managerName: true, operatingHours: true, googleMapsUrl: true,
+        latitude: true, longitude: true
+      },
+      orderBy: { city: 'asc' }
+    });
+    res.json(centers);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── MÉTODOS DE PAGO ───────────────────────────────────────────────────────────
 app.get('/payment-methods', async (req, res) => {
   try {
@@ -419,6 +538,85 @@ app.get('/payment-methods', async (req, res) => {
       where: { isActive: true }
     });
     res.json(methods);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── MÉTODOS DE PAGO DEL USUARIO (UserPaymentMethod) ──────────────────────────
+app.get('/user/payment-methods', authMiddleware, async (req, res) => {
+  try {
+    const methods = await prisma.userPaymentMethod.findMany({
+      where: { userId: req.userId },
+      include: { paymentMethod: true },
+      orderBy: { createdAt: 'asc' }
+    });
+    res.json(methods);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/user/payment-methods', authMiddleware, async (req, res) => {
+  try {
+    const { paymentMethodId, accountHolder, accountNumber, accountType, bankName } = req.body;
+    if (!paymentMethodId || !accountHolder || !accountNumber) {
+      return res.status(400).json({ error: 'Faltan datos de la cuenta' });
+    }
+
+    // Validar que el método de pago existe y está activo
+    const pm = await prisma.paymentMethod.findUnique({ where: { id: parseInt(paymentMethodId) } });
+    if (!pm || !pm.isActive) return res.status(400).json({ error: 'Método de pago no disponible' });
+
+    const upm = await prisma.userPaymentMethod.create({
+      data: {
+        userId: req.userId,
+        paymentMethodId: parseInt(paymentMethodId),
+        accountHolder,
+        accountNumber,
+        accountType: accountType || null,
+        bankName: bankName || null,
+      },
+      include: { paymentMethod: true }
+    });
+    res.status(201).json(upm);
+  } catch (err) {
+    if (err.code === 'P2002') {
+      return res.status(409).json({ error: 'Ya tienes una cuenta registrada para este método de pago' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/user/payment-methods/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { accountHolder, accountNumber, accountType, bankName, currentPassword } = req.body;
+
+    // Verificar contraseña
+    if (!currentPassword) return res.status(400).json({ error: 'Se requiere contraseña para modificar la cuenta' });
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    const bcrypt = require('bcrypt');
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) return res.status(401).json({ error: 'Contraseña incorrecta' });
+
+    // Verificar propiedad
+    const existing = await prisma.userPaymentMethod.findUnique({ where: { id: parseInt(id) } });
+    if (!existing || existing.userId !== req.userId) {
+      return res.status(403).json({ error: 'No tienes permiso para modificar esta cuenta' });
+    }
+
+    const updated = await prisma.userPaymentMethod.update({
+      where: { id: parseInt(id) },
+      data: {
+        accountHolder: accountHolder ?? undefined,
+        accountNumber: accountNumber ?? undefined,
+        accountType: accountType ?? undefined,
+        bankName: bankName ?? undefined,
+      },
+      include: { paymentMethod: true }
+    });
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -483,7 +681,6 @@ app.get('/profile', authMiddleware, async (req, res) => {
       where: { id: req.userId },
       select: {
         id: true, email: true, name: true, phone: true, cedula: true,
-        bankCountry: true, bankName: true, bankAccount: true, bankHolder: true, bankType: true,
         fiatBalance: true, cacaoBalance: true, createdAt: true
       }
     });
@@ -496,22 +693,16 @@ app.get('/profile', authMiddleware, async (req, res) => {
 
 app.put('/profile', authMiddleware, async (req, res) => {
   try {
-    const { name, phone, cedula, bankCountry, bankName, bankAccount, bankHolder, bankType } = req.body;
+    const { name, phone, cedula } = req.body;
     const updated = await prisma.user.update({
       where: { id: req.userId },
       data: {
         name: name ?? undefined,
         phone: phone ?? undefined,
         cedula: cedula ?? undefined,
-        bankCountry: bankCountry ?? undefined,
-        bankName: bankName ?? undefined,
-        bankAccount: bankAccount ?? undefined,
-        bankHolder: bankHolder ?? undefined,
-        bankType: bankType ?? undefined,
       },
       select: {
-        id: true, email: true, name: true, phone: true, cedula: true,
-        bankCountry: true, bankName: true, bankAccount: true, bankHolder: true, bankType: true
+        id: true, email: true, name: true, phone: true, cedula: true
       }
     });
     res.json({ message: 'Perfil actualizado', user: updated });
@@ -542,6 +733,7 @@ app.get('/cacao-price', async (req, res) => {
     res.json({
       buyPrice: config.buyPrice,
       sellPrice: config.sellPrice,
+      usdVesRate: config.usdVesRate,
       currency: 'USD'
     });
   } catch (err) {
@@ -829,32 +1021,30 @@ app.post('/admin/transactions/:id/approve', adminMiddleware, async (req, res) =>
 
       // 2. Business Logic
       if (tx.type === 'BUY') {
-        // Compra: User pays FIAT, receives Cacao
+        // Compra: El usuario paga FIAT y recibe Gramos (Tokens)
         const grams = tx.gramsAmount || (tx.fiatAmount / tx.cacaoPriceUSD);
         await p.user.update({
           where: { id: tx.userId },
           data: { cacaoBalance: { increment: grams } }
         });
-        // Update Reserve
+        // Actualizar Reserva: Se incrementan los tokens emitidos (reduce el stock disponible para la venta)
         await p.globalReserve.update({
           where: { id: 1 },
           data: {
-            totalCacaoStock: { decrement: grams },
             tokensIssued: { increment: grams }
           }
         });
       } else if (tx.type === 'SELL') {
-        // Venta/Retiro: User gives Cacao, receives FIAT
+        // Venta: El usuario entrega Gramos (Tokens) y recibe FIAT
         const grams = tx.gramsAmount;
         await p.user.update({
           where: { id: tx.userId },
           data: { cacaoLocked: { decrement: grams } }
         });
-        // Update Reserve
+        // Actualizar Reserva: Se reducen los tokens emitidos (vuelven a estar disponibles para la venta)
         await p.globalReserve.update({
           where: { id: 1 },
           data: {
-            totalCacaoStock: { increment: grams },
             tokensIssued: { decrement: grams }
           }
         });

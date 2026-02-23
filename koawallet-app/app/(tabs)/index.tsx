@@ -3,15 +3,17 @@ import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   RefreshControl, Alert
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Colors, Typography, Spacing } from '../../constants/Colors';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import DepositWithdrawModal from '@/components/DepositWithdrawModal';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface Balance {
   fiat: number;
   cacao: number;
+  cacaoLocked: number;
   cacaoPricePerGram: number;
   cacaoValueInUSD: number;
 }
@@ -28,16 +30,15 @@ interface Transaction {
 }
 
 const TX_LABELS: Record<string, { label: string; sign: string; color: string }> = {
+  BUY: { label: '💳 Compra de Cacao', sign: '+', color: Colors.gold },
+  SELL: { label: '💰 Venta de Cacao', sign: '-', color: Colors.goldLight },
   DEPOSIT_USD: { label: 'Depósito USD', sign: '+', color: Colors.success },
-  DEPOSIT_CACAO: { label: 'Depósito Cacao', sign: '+', color: Colors.gold },
+  DEPOSIT_CACAO: { label: 'Depósito Físico', sign: '+', color: Colors.gold },
   WITHDRAW_USD: { label: 'Retiro USD', sign: '-', color: Colors.error },
   WITHDRAW_CACAO: { label: 'Retiro Cacao', sign: '-', color: Colors.error },
-  CONVERT_CACAO_TO_USD: { label: 'Cacao → USD', sign: '⇄', color: Colors.goldLight },
-  CONVERT_USD_TO_CACAO: { label: 'USD → Cacao', sign: '⇄', color: Colors.goldLight },
 };
 
 export default function DashboardScreen() {
-  const router = useRouter();
   const { user, logout } = useAuth();
   const [balance, setBalance] = useState<Balance | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -92,37 +93,43 @@ export default function DashboardScreen() {
       {/* Balance Card Principal */}
       <View style={styles.balanceCard}>
         <View style={styles.balanceCardHeader}>
-          <Text style={styles.balanceLabelTop}>🍫 Granos de Cacao</Text>
+          <Text style={styles.balanceLabelTop}>🍫 Token de Cacao</Text>
           <View style={styles.priceBadge}>
             <Text style={styles.priceText}>${balance?.cacaoPricePerGram?.toFixed(2)}/g</Text>
           </View>
         </View>
-        <Text style={styles.balanceCacao}>{balance?.cacao?.toFixed(4) ?? '0.0000'} <Text style={styles.balanceUnit}>gramos</Text></Text>
+        <Text style={styles.balanceCacao}>
+          {balance?.cacao?.toFixed(4) ?? '0.0000'} <Text style={styles.balanceUnit}>gramos</Text>
+        </Text>
         <Text style={styles.balanceCacaoUSD}>≈ ${balance?.cacaoValueInUSD?.toFixed(2) ?? '0.00'} USD</Text>
 
-        <View style={styles.divider} />
-
-        <View style={styles.usdRow}>
-          <Text style={styles.usdLabel}>💵 Saldo en USD</Text>
-          <Text style={styles.usdAmount}>${balance?.fiat?.toFixed(2) ?? '0.00'}</Text>
-        </View>
+        {balance && balance.cacaoLocked > 0 && (
+          <View style={styles.lockedBadge}>
+            <Text style={styles.lockedText}>🔒 {balance.cacaoLocked.toFixed(4)}g en proceso de retiro</Text>
+          </View>
+        )}
       </View>
 
       {/* Botones de acción */}
       <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => setModalType('DEPOSIT')}>
-          <Text style={styles.actionEmoji}>⬇️</Text>
-          <Text style={styles.actionLabel}>Depositar</Text>
+        <TouchableOpacity style={styles.specBtn} onPress={() => setModalType('DEPOSIT')}>
+          <LinearGradient
+            colors={[Colors.gold, '#D4AF37']}
+            style={styles.specBtnGradient}
+          >
+            <Ionicons name="add-circle-outline" size={28} color={Colors.background} />
+            <Text style={styles.specBtnLabel}>Comprar / Depositar</Text>
+          </LinearGradient>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.actionBtn, styles.actionBtnCenter]} onPress={() => setModalType('WITHDRAW')}>
-          <Text style={styles.actionEmoji}>↗️</Text>
-          <Text style={styles.actionLabel}>Retirar</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/convertir')}>
-          <Text style={styles.actionEmoji}>🔄</Text>
-          <Text style={styles.actionLabel}>Convertir</Text>
+        <TouchableOpacity style={styles.specBtn} onPress={() => setModalType('WITHDRAW')}>
+          <LinearGradient
+            colors={['#2A2A2A', '#1A1A1A']}
+            style={[styles.specBtnGradient, { borderColor: Colors.border, borderWidth: 1 }]}
+          >
+            <Ionicons name="arrow-up-circle-outline" size={28} color={Colors.gold} />
+            <Text style={[styles.specBtnLabel, { color: Colors.gold }]}>Vender / Retirar</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
 
@@ -193,21 +200,24 @@ const styles = StyleSheet.create({
   balanceCacao: { fontSize: 36, fontWeight: '700', color: Colors.textPrimary, marginVertical: 4 },
   balanceUnit: { fontSize: 18, color: Colors.textSecondary },
   balanceCacaoUSD: { ...Typography.sm, color: Colors.textSecondary, marginBottom: 12 },
-  divider: { height: 1, backgroundColor: Colors.border, marginVertical: 12 },
-  usdRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  usdLabel: { ...Typography.body, color: Colors.textSecondary },
-  usdAmount: { ...Typography.h3, color: Colors.gold },
-
-  // Action buttons
-  actionsRow: { flexDirection: 'row', marginBottom: Spacing.xl },
-  actionBtn: {
-    flex: 1, backgroundColor: Colors.surface, borderRadius: 16,
-    paddingVertical: Spacing.md, alignItems: 'center',
-    borderWidth: 1, borderColor: Colors.border,
+  lockedBadge: {
+    flexDirection: 'row', alignItems: 'center', marginTop: 10,
+    backgroundColor: '#2A1A00', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6,
+    borderWidth: 1, borderColor: '#7A4A00', alignSelf: 'flex-start',
   },
-  actionBtnCenter: { marginHorizontal: Spacing.sm },
-  actionEmoji: { fontSize: 26, marginBottom: 4 },
-  actionLabel: { ...Typography.sm, color: Colors.textPrimary, fontWeight: '600' },
+  lockedText: { ...Typography.xs, color: '#FFB347', fontWeight: '600' },
+
+  // Spectacular buttons
+  actionsRow: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.xl },
+  specBtn: { flex: 1, height: 100, borderRadius: 20, overflow: 'hidden' },
+  specBtnGradient: {
+    flex: 1, justifyContent: 'center', alignItems: 'center',
+    paddingVertical: Spacing.md,
+  },
+  specBtnLabel: {
+    ...Typography.sm, color: Colors.background, fontWeight: '700',
+    marginTop: 8, textAlign: 'center',
+  },
 
   // Transactions
   sectionTitle: { ...Typography.bodyBold, color: Colors.textSecondary, marginBottom: Spacing.md, textTransform: 'uppercase', letterSpacing: 1, fontSize: 12 },

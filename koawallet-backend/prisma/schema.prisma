@@ -17,13 +17,8 @@ model User {
   fiatBalance       Float             @default(0.0)
   cacaoBalance      Float             @default(0.0)
   cacaoLocked       Float             @default(0.0) // En proceso de retiro/venta
-  // Datos bancarios personales del usuario
-  bankCountry       String?
-  bankName          String?
-  bankAccount       String?
-  bankHolder        String?
-  bankType          String?           // "corriente" | "ahorro"
   transactions      Transaction[]
+  paymentMethods    UserPaymentMethod[]
   role              String            @default("user") // "admin" | "cajero" | "oficinista" | "user"
   status            String            @default("active") // "active" | "blocked"
   depositsAsUser    PhysicalDeposit[] @relation("UserDeposits")
@@ -52,16 +47,19 @@ model PaymentMethod {
   currency      String   // "VES", "USDT", "USD"
   details       Json     // Datos de la cuenta (Cédula, Teléfono, Wallet Address, Red)
   instructions  String?  // Ejemplo: "Enviar solo por red TRC20"
-  isActive      Boolean  @default(true)
-  transactions  Transaction[]
+  isActive            Boolean             @default(true)
+  transactions        Transaction[]
+  userPaymentMethods  UserPaymentMethod[]
 }
 
 model Transaction {
   id                Int           @id @default(autoincrement())
   userId            Int
   user              User          @relation(fields: [userId], references: [id])
-  paymentMethodId   Int?
-  paymentMethod     PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  paymentMethodId       Int?
+  paymentMethod         PaymentMethod?     @relation(fields: [paymentMethodId], references: [id])
+  userPaymentMethodId   Int?
+  userPaymentMethod     UserPaymentMethod? @relation(fields: [userPaymentMethodId], references: [id])
   type              String        // "DEPOSIT_CACAO", "WITHDRAW_USD", "BUY", "SELL", etc.
   status            String        @default("PENDING") // "PENDING", "COMPLETED", "REJECTED"
   // Montos
@@ -146,4 +144,22 @@ model PhysicalDeposit {
   notes             String?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
+}
+
+model UserPaymentMethod {
+  id              Int           @id @default(autoincrement())
+  userId          Int
+  user            User          @relation(fields: [userId], references: [id])
+  paymentMethodId Int
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  // Datos de la cuenta del usuario para este método de pago
+  accountHolder   String        // Nombre del titular
+  accountNumber   String        // Número de cuenta / teléfono / wallet address
+  accountType     String?       // Corriente / Ahorro / Red (para cripto)
+  bankName        String?       // Para métodos bancarios
+  transactions    Transaction[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([userId, paymentMethodId]) // Un usuario solo puede tener una cuenta por tipo de método
 }

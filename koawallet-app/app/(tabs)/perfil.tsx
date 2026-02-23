@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, ScrollView,
     TextInput, Alert, ActivityIndicator
@@ -6,18 +6,43 @@ import {
 import { Colors, Typography, Spacing } from '../../constants/Colors';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
+import UserPaymentMethodManager from '../../components/UserPaymentMethodManager';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Profile {
     name?: string;
     email: string;
     phone?: string;
     cedula?: string;
-    bankCountry?: string;
-    bankName?: string;
-    bankAccount?: string;
-    bankHolder?: string;
-    bankType?: string;
 }
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+const Field = ({
+    label, value, onChangeText, placeholder, editMode, keyboardType = 'default' as any
+}: {
+    label: string; value: string; onChangeText: (v: string) => void;
+    placeholder: string; editMode: boolean; keyboardType?: any
+}) => (
+    <View style={styles.fieldGroup}>
+        <Text style={styles.fieldLabel}>{label}</Text>
+        {editMode ? (
+            <TextInput
+                style={styles.fieldInput}
+                value={value}
+                onChangeText={onChangeText}
+                placeholder={placeholder}
+                placeholderTextColor={Colors.textMuted}
+                keyboardType={keyboardType}
+            />
+        ) : (
+            <Text style={styles.fieldValue}>{value || <Text style={styles.fieldEmpty}>No configurado</Text>}</Text>
+        )}
+    </View>
+);
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function PerfilScreen() {
     const { logout } = useAuth();
@@ -30,15 +55,8 @@ export default function PerfilScreen() {
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [cedula, setCedula] = useState('');
-    const [bankCountry, setBankCountry] = useState('');
-    const [bankName, setBankName] = useState('');
-    const [bankAccount, setBankAccount] = useState('');
-    const [bankHolder, setBankHolder] = useState('');
-    const [bankType, setBankType] = useState('');
 
-    useEffect(() => { fetchProfile(); }, []);
-
-    const fetchProfile = async () => {
+    const fetchProfile = useCallback(async () => {
         setLoading(true);
         try {
             const res = await api.get('/profile');
@@ -47,22 +65,21 @@ export default function PerfilScreen() {
             setName(p.name || '');
             setPhone(p.phone || '');
             setCedula(p.cedula || '');
-            setBankCountry(p.bankCountry || '');
-            setBankName(p.bankName || '');
-            setBankAccount(p.bankAccount || '');
-            setBankHolder(p.bankHolder || '');
-            setBankType(p.bankType || '');
         } catch (err: any) {
             Alert.alert('Error', err.message);
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchProfile();
+    }, [fetchProfile]);
 
     const handleSave = async () => {
         setSaving(true);
         try {
-            await api.put('/profile', { name, phone, cedula, bankCountry, bankName, bankAccount, bankHolder, bankType });
+            await api.put('/profile', { name, phone, cedula });
             Alert.alert('✅ Perfil actualizado');
             setEditMode(false);
             fetchProfile();
@@ -80,24 +97,6 @@ export default function PerfilScreen() {
             </View>
         );
     }
-
-    const Field = ({ label, value, onChangeText, placeholder, keyboardType = 'default' }: any) => (
-        <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>{label}</Text>
-            {editMode ? (
-                <TextInput
-                    style={styles.fieldInput}
-                    value={value}
-                    onChangeText={onChangeText}
-                    placeholder={placeholder}
-                    placeholderTextColor={Colors.textMuted}
-                    keyboardType={keyboardType}
-                />
-            ) : (
-                <Text style={styles.fieldValue}>{value || <Text style={styles.fieldEmpty}>No configurado</Text>}</Text>
-            )}
-        </View>
-    );
 
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -138,21 +137,13 @@ export default function PerfilScreen() {
             {/* Datos personales */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>👤 Datos personales</Text>
-                <Field label="Nombre completo" value={name} onChangeText={setName} placeholder="Tu nombre completo" />
-                <Field label="Cédula / DNI" value={cedula} onChangeText={setCedula} placeholder="Ej: V-12345678" />
-                <Field label="Teléfono" value={phone} onChangeText={setPhone} placeholder="Ej: +58 414 1234567" keyboardType="phone-pad" />
+                <Field label="Nombre completo" value={name} onChangeText={setName} placeholder="Tu nombre completo" editMode={editMode} />
+                <Field label="Cédula / DNI" value={cedula} onChangeText={setCedula} placeholder="Ej: V-12345678" editMode={editMode} />
+                <Field label="Teléfono" value={phone} onChangeText={setPhone} placeholder="Ej: +58 414 1234567" keyboardType="phone-pad" editMode={editMode} />
             </View>
 
-            {/* Datos bancarios */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>🏦 Mis datos bancarios</Text>
-                <Text style={styles.sectionSub}>Para recibir retiros en tu cuenta personal</Text>
-                <Field label="País del banco" value={bankCountry} onChangeText={setBankCountry} placeholder="Ej: Venezuela" />
-                <Field label="Nombre del banco" value={bankName} onChangeText={setBankName} placeholder="Ej: Banesco" />
-                <Field label="Titular de la cuenta" value={bankHolder} onChangeText={setBankHolder} placeholder="Tu nombre como aparece en el banco" />
-                <Field label="Número de cuenta" value={bankAccount} onChangeText={setBankAccount} placeholder="Ej: 0134-0000-11-..." keyboardType="numeric" />
-                <Field label="Tipo de cuenta" value={bankType} onChangeText={setBankType} placeholder="Corriente / Ahorro / Crypto" />
-            </View>
+            {/* Mis cuentas de cobro (UserPaymentMethod) */}
+            <UserPaymentMethodManager />
 
             {/* Logout */}
             <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
@@ -162,6 +153,8 @@ export default function PerfilScreen() {
     );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background },
     content: { paddingHorizontal: Spacing.lg, paddingTop: 60, paddingBottom: 60 },
@@ -170,8 +163,8 @@ const styles = StyleSheet.create({
     avatarSection: { alignItems: 'center', marginBottom: Spacing.lg },
     avatar: {
         width: 80, height: 80, borderRadius: 40,
-        backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center',
-        borderWidth: 2, borderColor: Colors.gold, marginBottom: Spacing.sm,
+        backgroundColor: Colors.surfaceLight, borderWidth: 2, borderColor: Colors.gold,
+        justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.sm,
     },
     avatarEmoji: { fontSize: 38 },
     avatarName: { ...Typography.h3, color: Colors.textPrimary },
