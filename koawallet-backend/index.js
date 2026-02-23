@@ -655,6 +655,38 @@ app.put('/user/payment-methods/:id', authMiddleware, async (req, res) => {
   }
 });
 
+app.delete('/user/payment-methods/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    // Verificar contraseña
+    if (!password) {
+      return res.status(400).json({ error: 'Se requiere la contraseña para eliminar la cuenta' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) {
+      return res.status(401).json({ error: 'Contraseña incorrecta' });
+    }
+
+    // Verificar propiedad y existencia
+    const upm = await prisma.userPaymentMethod.findUnique({ where: { id: parseInt(id) } });
+    if (!upm || upm.userId !== req.userId) {
+      return res.status(404).json({ error: 'La cuenta no existe o no tienes permiso para eliminarla' });
+    }
+
+    await prisma.userPaymentMethod.delete({
+      where: { id: parseInt(id) }
+    });
+
+    res.json({ message: 'Cuenta de cobro eliminada exitosamente' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Admin Payment Methods CRUD
 app.get('/admin/payment-methods', adminMiddleware, async (req, res) => {
   try {

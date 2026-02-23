@@ -1,4 +1,4 @@
-import { Stack, router } from 'expo-router';
+import { Stack, router, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
@@ -8,16 +8,21 @@ import { View, ActivityIndicator } from 'react-native';
 
 function RootNavigator() {
   const { user, isLoading } = useAuth();
+  const segments = useSegments();
 
   useEffect(() => {
-    if (!isLoading) {
-      if (user) {
-        router.replace('/');
-      } else {
-        router.replace('/login');
-      }
+    if (isLoading) return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (user && inAuthGroup) {
+      // Si el usuario está autenticado pero sigue en el grupo de auth (login/registro), mover a la app
+      router.replace('/');
+    } else if (!user && !inAuthGroup) {
+      // Si el usuario NO está autenticado y NO está en el grupo de auth, mover a login
+      router.replace('/login');
     }
-  }, [user, isLoading]);
+  }, [user, isLoading, segments]);
 
   if (isLoading) {
     return (

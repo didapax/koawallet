@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, ScrollView,
     TextInput, Alert, ActivityIndicator
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Colors, Typography, Spacing } from '../../constants/Colors';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
@@ -74,9 +75,11 @@ export default function PerfilScreen() {
         }
     }, [updateUser]);
 
-    useEffect(() => {
-        fetchProfile();
-    }, [fetchProfile]);
+    useFocusEffect(
+        useCallback(() => {
+            fetchProfile();
+        }, [fetchProfile])
+    );
 
     const handleSave = async () => {
         setSaving(true);
