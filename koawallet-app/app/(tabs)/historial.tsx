@@ -4,6 +4,7 @@ import {
     RefreshControl, ActivityIndicator
 } from 'react-native';
 import { Colors, Typography, Spacing } from '../../constants/Colors';
+import { useFocusEffect } from '@react-navigation/native';
 import api from '../../utils/api';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -45,9 +46,13 @@ export default function HistoryScreen() {
         }
     }, []);
 
-    useEffect(() => {
-        fetchTransactions();
-    }, [fetchTransactions]);
+    useFocusEffect(
+        useCallback(() => {
+            fetchTransactions();
+            const interval = setInterval(fetchTransactions, 30000); // Poll every 30s
+            return () => clearInterval(interval);
+        }, [fetchTransactions])
+    );
 
     const onRefresh = () => {
         setRefreshing(true);

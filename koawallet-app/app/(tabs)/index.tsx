@@ -4,6 +4,7 @@ import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   RefreshControl, Alert
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Colors, Typography, Spacing } from '../../constants/Colors';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
@@ -75,11 +76,13 @@ export default function DashboardScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 15000); // Poll every 15s
-    return () => clearInterval(interval);
-  }, [fetchData]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+      const interval = setInterval(fetchData, 15000); // Poll every 15s
+      return () => clearInterval(interval);
+    }, [fetchData])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
