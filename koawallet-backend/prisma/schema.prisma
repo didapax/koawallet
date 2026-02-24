@@ -80,6 +80,7 @@ model Transaction {
   bankOptionId      Int?
   bankOption        BankOption?   @relation(fields: [bankOptionId], references: [id])
   notes             String?       // legacy notes
+  feeUSD            Float?        // La comisión cobrada en USD
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 }
@@ -163,4 +164,11 @@ model UserPaymentMethod {
   updatedAt       DateTime      @updatedAt
 
   @@unique([userId, paymentMethodId]) // Un usuario solo puede tener una cuenta por tipo de método
+}
+
+model Treasury {
+  id                Int      @id @default(1)
+  totalFeesUSD      Float    @default(0.0)
+  totalGramsTraded  Float    @default(0.0)
+  lastUpdate        DateTime @updatedAt
 }

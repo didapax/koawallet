@@ -51,6 +51,26 @@ async function getCacaoPrice(type = 'buy') {
   return type === 'sell' ? config.sellPrice : config.buyPrice;
 }
 
+// ─── Treasury Helper ───────────────────────────────────────────────────────────
+async function updateTreasuryStats(tx, feeUSD = 0, gramsTraded = 0) {
+  try {
+    await tx.treasury.upsert({
+      where: { id: 1 },
+      update: {
+        totalFeesUSD: { increment: feeUSD },
+        totalGramsTraded: { increment: gramsTraded }
+      },
+      create: {
+        id: 1,
+        totalFeesUSD: feeUSD,
+        totalGramsTraded: gramsTraded
+      }
+    });
+  } catch (err) {
+    console.error("Error al actualizar Treasury:", err.message);
+  }
+}
+
 // ─── Middleware Auth ───────────────────────────────────────────────────────────
 async function authMiddleware(req, res, next) {
   const header = req.headers.authorization;
@@ -225,14 +245,22 @@ app.post('/deposit', authMiddleware, async (req, res) => {
       const cacaoPriceUSD = config.buyPrice;
       const exchangeRate = config.usdVesRate;
       const parsedFiat = parseFloat(fiatAmount);
+      const networkFeeUSD = config.networkFee;
+
+      // Calcular la comisión en la moneda del método
+      const feeInMethodCurrency = pm.currency === 'VES'
+        ? parseFloat((networkFeeUSD * exchangeRate).toFixed(2))
+        : networkFeeUSD;
+
+      const availableFiat = parsedFiat - feeInMethodCurrency;
+      if (availableFiat <= 0) return res.status(400).json({ error: 'Monto insuficiente para cubrir la tasa de red.' });
 
       // Calcular gramos según la moneda del método
       let gramsAmount;
       if (pm.currency === 'VES') {
-        gramsAmount = parseFloat(((parsedFiat / exchangeRate) / cacaoPriceUSD).toFixed(4));
+        gramsAmount = parseFloat(((availableFiat / exchangeRate) / cacaoPriceUSD).toFixed(4));
       } else {
-        // USD, USDT u otro
-        gramsAmount = parseFloat((parsedFiat / cacaoPriceUSD).toFixed(4));
+        gramsAmount = parseFloat((availableFiat / cacaoPriceUSD).toFixed(4));
       }
 
       if (gramsAmount <= 0) return res.status(400).json({ error: 'Monto insuficiente para calcular gramos' });
@@ -257,9 +285,10 @@ app.post('/deposit', authMiddleware, async (req, res) => {
           exchangeRate: pm.currency === 'VES' ? exchangeRate : 1,
           amountUSD: pm.currency === 'VES' ? parseFloat((parsedFiat / exchangeRate).toFixed(2)) : parsedFiat,
           amountCacao: gramsAmount,
+          feeUSD: networkFeeUSD,
           paymentMethodId: parseInt(paymentMethodId),
           reference: reference || null,
-          notes: notes || null,
+          notes: notes ? `${notes} (Tasa Red: ${feeInMethodCurrency} ${pm.currency})` : `Tasa Red: ${feeInMethodCurrency} ${pm.currency}`,
           status: 'PENDING',
         }
       });
@@ -390,6 +419,7 @@ app.post('/withdraw', authMiddleware, async (req, res) => {
           amountCacao: grams,
           amountUSD,
           fiatAmount: netFiatAmount, // Almacenamos el monto NETO para el cajero
+          feeUSD: networkFeeUSD,     // Guardamos la comisión en USD
           userPaymentMethodId: parseInt(userPaymentMethodId),
           notes: notes ? `${notes} (Tasa Red: ${feeInMethodCurrency} ${upm.paymentMethod.currency})` : `Tasa Red: ${feeInMethodCurrency} ${upm.paymentMethod.currency}`,
           status: 'PENDING',
@@ -431,6 +461,7 @@ app.post('/withdraw', authMiddleware, async (req, res) => {
       method: method || null,
       bankOptionId: bankOptionId ? parseInt(bankOptionId) : null,
       notes: notes || (type === 'WITHDRAW_USD' ? `Tasa de red: ${networkFee} USD` : null),
+      feeUSD: type === 'WITHDRAW_USD' ? networkFee : null,
       status: 'PENDING',
     };
 
@@ -942,6 +973,16 @@ app.put('/admin/users/:id', adminMiddleware, async (req, res) => {
   }
 });
 
+// ─── ADMIN TREASURY ───────────────────────────────────────────────────────────
+app.get('/admin/treasury', adminMiddleware, async (req, res) => {
+  try {
+    const stats = await prisma.treasury.findUnique({ where: { id: 1 } });
+    res.json(stats || { totalFeesUSD: 0, totalGramsTraded: 0 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── ADMIN RESERVA ─────────────────────────────────────────────────────────────
 app.get('/admin/reserve', adminMiddleware, async (req, res) => {
   try {
@@ -1101,6 +1142,10 @@ app.post('/admin/transactions/:id/approve', adminMiddleware, async (req, res) =>
         where: { id: tx.id },
         data: { status: 'COMPLETED', adminNotes, updatedAt: new Date() }
       });
+
+      // 1.1 Update Treasury Stats
+      const gramsForTreasury = tx.gramsAmount || (['WITHDRAW_CACAO', 'DEPOSIT_CACAO'].includes(tx.type) ? tx.amount : 0);
+      await updateTreasuryStats(p, tx.feeUSD || 0, gramsForTreasury);
 
       // 2. Business Logic
       if (tx.type === 'BUY') {
@@ -1324,6 +1369,8 @@ app.put('/admin/physical-deposits/:id/verify', adminMiddleware, async (req, res)
           notes: `Tokenización de cacao físico (ID Depósito: ${id})`
         }
       }),
+      // 3.1 Actualizar Treasury Stats (Gramos transados)
+      updateTreasuryStats(prisma, 0, tokens),
       // 4. Actualizar Reserva Global
       prisma.globalReserve.update({
         where: { id: 1 },
@@ -1416,6 +1463,8 @@ const processMaintenanceFees = async () => {
               notes: `Cobro de tasa de mantenimiento mensual ($${maintenanceFeeUSD} USD)`
             }
           }),
+          // 2.1 Actualizar Treasury Stats (Comisión de mantenimiento)
+          updateTreasuryStats(prisma, maintenanceFeeUSD, gramsToCharge),
           // 3. Actualizar Reserva Global (disminuir tokens emitidos)
           prisma.globalReserve.update({
             where: { id: 1 },

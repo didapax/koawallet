@@ -18,6 +18,10 @@ const Dashboard = ({ onLogout }) => {
             tokensIssued: 0,
             availableStock: 0,
             totalReserveValueUSD: 0
+        },
+        treasury: {
+            totalFeesUSD: 0,
+            totalGramsTraded: 0
         }
     });
     const [loading, setLoading] = useState(true);
@@ -31,16 +35,23 @@ const Dashboard = ({ onLogout }) => {
                 });
                 const reserveData = await reserveRes.json();
 
-                // Fetch users count (actually we'd need an endpoint or calculate from /admin/users)
+                // Fetch users count
                 const usersRes = await fetch(`${API_URL}/admin/users`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const usersData = await usersRes.json();
 
+                // Fetch treasury
+                const treasuryRes = await fetch(`${API_URL}/admin/treasury`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const treasuryData = await treasuryRes.json();
+
                 setStats({
                     totalUsers: usersData.length,
-                    volumeToday: 0, // Placeholder for now or calculate from transactions
-                    reserve: reserveData
+                    volumeToday: treasuryData.totalGramsTraded,
+                    reserve: reserveData,
+                    treasury: treasuryData
                 });
             } catch (err) {
                 console.error("Error fetching dashboard stats:", err);
@@ -178,6 +189,18 @@ const Dashboard = ({ onLogout }) => {
                         value={loading ? "..." : `~$${stats.reserve.totalReserveValueUSD.toLocaleString()}`}
                         icon={<TrendingUp size={24} />}
                         trend="Respaldo físico total"
+                    />
+                    <StatCard
+                        title="Tesorería (Fees)"
+                        value={loading ? "..." : `$${stats.treasury.totalFeesUSD.toLocaleString()}`}
+                        icon={<CreditCard size={24} />}
+                        trend="Comisiones acumuladas (USD)"
+                    />
+                    <StatCard
+                        title="Volumen Histórico"
+                        value={loading ? "..." : `${stats.treasury.totalGramsTraded.toLocaleString()} g`}
+                        icon={<TrendingUp size={24} />}
+                        trend="Total de cacao transado"
                     />
                 </div>
 
