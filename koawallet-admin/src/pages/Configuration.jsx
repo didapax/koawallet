@@ -39,8 +39,10 @@ const Configuration = () => {
         else setLoading(true);
 
         try {
-            const priceToUse = manualPrice !== null ? manualPrice : config.marketTonPrice;
-            const url = refresh ? `${API_URL}/admin/config?refresh=true&manualMarketPrice=${priceToUse}` : `${API_URL}/admin/config`;
+            const url = (refresh && manualPrice !== null)
+                ? `${API_URL}/admin/config?refresh=true&manualMarketPrice=${manualPrice}`
+                : `${API_URL}/admin/config`;
+
             const response = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
