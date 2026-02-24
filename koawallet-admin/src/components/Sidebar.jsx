@@ -9,7 +9,8 @@ import {
     Settings,
     MapPin,
     ClipboardList,
-    CreditCard
+    CreditCard,
+    Search
 } from 'lucide-react';
 import { hasPermission } from '../utils/permissions';
 
@@ -26,6 +27,7 @@ const Sidebar = ({ onLogout, variant = 'full' }) => {
         { path: '/cashier', label: 'Cola del Cajero', icon: <ClipboardList size={20} /> },
         { path: '/payment-methods', label: 'Métodos de Pago', icon: <CreditCard size={20} /> },
         { path: '/treasury', label: 'Tesorería', icon: <Wallet size={20} /> },
+        { path: '/transactions', label: 'Explorador Tx', icon: <Search size={20} /> },
     ];
 
     const filteredItems = menuItems.filter(item => hasPermission(userRole, item.path));

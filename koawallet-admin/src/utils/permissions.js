@@ -4,15 +4,15 @@
  */
 export const ROLE_PERMISSIONS = {
     admin: {
-        allowedPaths: ['*', '/', '/users', '/config', '/collection-centers', '/physical-deposits', '/payment-methods', '/cashier', '/treasury'], // Admin can access everything
+        allowedPaths: ['*', '/', '/users', '/config', '/collection-centers', '/physical-deposits', '/payment-methods', '/cashier', '/treasury', '/transactions'], // Admin can access everything
         restrictedActions: []
     },
     oficinista: {
-        allowedPaths: ['/', '/collection-centers', '/config', '/treasury'], // Oficinista: centers, payments, treasury
+        allowedPaths: ['/', '/collection-centers', '/config', '/treasury', '/transactions'], // Oficinista: centers, payments, treasury
         restrictedActions: ['delete_user', 'change_any_password', 'manage_staff']
     },
     cajero: {
-        allowedPaths: ['/', '/physical-deposits', '/cashier'], // Cajero: physical deposits, cashier queue
+        allowedPaths: ['/', '/physical-deposits', '/cashier', '/transactions'], // Cajero: physical deposits, cashier queue
         restrictedActions: ['manage_users', 'view_reports_sensitive']
     }
 };

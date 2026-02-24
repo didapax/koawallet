@@ -1122,6 +1122,84 @@ app.get('/admin/transactions/pending', adminMiddleware, async (req, res) => {
   }
 });
 
+// ─── EXPLORADOR DE TRANSACCIONES (ADMIN) ──────────────────────────────────────
+app.get('/admin/transactions/search', adminMiddleware, async (req, res) => {
+  try {
+    const { q, type, status, dateFrom, dateTo, page = '1', limit = '25' } = req.query;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const take = parseInt(limit);
+
+    // Build the 'where' clause dynamically
+    const where = {};
+
+    // Type filter
+    if (type && type !== 'ALL') {
+      where.type = type;
+    }
+
+    // Status filter
+    if (status && status !== 'ALL') {
+      where.status = status;
+    }
+
+    // Date range filter
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999); // include the full day
+        where.createdAt.lte = toDate;
+      }
+    }
+
+    // Free-text search: by transaction ID, user name, cedula, or payment reference
+    if (q && q.trim() !== '') {
+      const trimmedQ = q.trim();
+      // If numeric, also search by transaction ID
+      const numericId = parseInt(trimmedQ);
+      const orClauses = [
+        { user: { name: { contains: trimmedQ } } },
+        { user: { email: { contains: trimmedQ } } },
+        { user: { cedula: { contains: trimmedQ } } },
+        { reference: { contains: trimmedQ } },
+        { adminNotes: { contains: trimmedQ } },
+      ];
+      if (!isNaN(numericId)) {
+        orClauses.push({ id: numericId });
+      }
+      where.OR = orClauses;
+    }
+
+    const [transactions, total] = await Promise.all([
+      prisma.transaction.findMany({
+        where,
+        include: {
+          user: { select: { id: true, name: true, email: true, phone: true, cedula: true } },
+          paymentMethod: true,
+          userPaymentMethod: {
+            include: { paymentMethod: true }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take
+      }),
+      prisma.transaction.count({ where })
+    ]);
+
+    res.json({
+      transactions,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / take)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/admin/transactions/:id/approve', adminMiddleware, async (req, res) => {
   try {
     const { id } = req.params;

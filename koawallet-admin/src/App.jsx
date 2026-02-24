@@ -10,6 +10,7 @@ import PhysicalDeposits from './pages/PhysicalDeposits';
 import PaymentMethods from './pages/PaymentMethods';
 import Cashier from './pages/Cashier';
 import Treasury from './pages/Treasury';
+import TransactionExplorer from './pages/TransactionExplorer';
 import './index.css';
 
 import { hasPermission } from './utils/permissions';
@@ -122,6 +123,12 @@ function App() {
         <Route path="/treasury" element={
           <ProtectedRoute isAuthenticated={isAuthenticated} role={userRole} path="/treasury">
             <Treasury />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/transactions" element={
+          <ProtectedRoute isAuthenticated={isAuthenticated} role={userRole} path="/transactions">
+            <TransactionExplorer />
           </ProtectedRoute>
         } />
 
