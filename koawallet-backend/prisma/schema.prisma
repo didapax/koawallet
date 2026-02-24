@@ -26,6 +26,7 @@ model User {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   lastMaintenanceCharge DateTime?     @default(now())
+  treasuryWithdrawals TreasuryWithdrawal[]
 }
 
 model BankOption {
@@ -171,4 +172,14 @@ model Treasury {
   totalFeesUSD      Float    @default(0.0)
   totalGramsTraded  Float    @default(0.0)
   lastUpdate        DateTime @updatedAt
+}
+
+model TreasuryWithdrawal {
+  id          Int      @id @default(autoincrement())
+  amount      Float    // Cuánto estás sacando
+  reason      String   // Ejemplo: "Pago de servidor AWS", "Retiro de utilidades"
+  adminId     Int      // Quién autorizó el movimiento
+  admin       User     @relation(fields: [adminId], references: [id])
+  reference   String?  // Hash o número de transferencia
+  createdAt   DateTime @default(now())
 }

@@ -133,6 +133,15 @@ const Dashboard = ({ onLogout }) => {
                             </div>
                         </Link>
                     )}
+
+                    {userRole === 'admin' && (
+                        <Link to="/treasury" style={{ textDecoration: 'none', color: 'inherit' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
+                                <Wallet size={20} />
+                                <span style={{ fontWeight: 500 }}>Tesorería</span>
+                            </div>
+                        </Link>
+                    )}
                 </nav>
 
                 <button

@@ -1491,6 +1491,77 @@ app.post('/admin/test-maintenance-fee', authMiddleware, adminMiddleware, async (
   }
 });
 
+// ─── TREASURY & WITHDRAWALS ───────────────────────────────────────────────────
+app.get('/api/admin/treasury/stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const treasury = await prisma.treasury.findUnique({ where: { id: 1 } });
+    const withdrawals = await prisma.treasuryWithdrawal.aggregate({
+      _sum: { amount: true }
+    });
+
+    const totalFees = treasury?.totalFeesUSD || 0;
+    const totalWithdrawals = withdrawals._sum.amount || 0;
+    const availableBalance = parseFloat((totalFees - totalWithdrawals).toFixed(2));
+
+    res.json({
+      totalFees,
+      totalWithdrawals,
+      availableBalance,
+      totalGramsTraded: treasury?.totalGramsTraded || 0,
+      lastUpdate: treasury?.lastUpdate
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/treasury/withdrawals', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const list = await prisma.treasuryWithdrawal.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { admin: { select: { name: true, email: true } } }
+    });
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/treasury/withdrawals', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { amount, reason, reference } = req.body;
+    if (!amount || amount <= 0 || !reason) {
+      return res.status(400).json({ error: 'Monto y razón son requeridos' });
+    }
+
+    // Verificar si hay saldo suficiente
+    const treasury = await prisma.treasury.findUnique({ where: { id: 1 } });
+    const withdrawals = await prisma.treasuryWithdrawal.aggregate({
+      _sum: { amount: true }
+    });
+    const totalFees = treasury?.totalFeesUSD || 0;
+    const totalWithdrawals = withdrawals._sum.amount || 0;
+    const availableBalance = totalFees - totalWithdrawals;
+
+    if (amount > availableBalance) {
+      return res.status(400).json({ error: `Saldo insuficiente. Disponible: $${availableBalance.toFixed(2)}` });
+    }
+
+    const withdrawal = await prisma.treasuryWithdrawal.create({
+      data: {
+        amount: parseFloat(amount),
+        reason,
+        reference: reference || null,
+        adminId: req.userId
+      }
+    });
+
+    res.status(201).json(withdrawal);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Programar el cron para que corra todos los días a las 00:00
 cron.schedule('0 0 * * *', () => {
   processMaintenanceFees();

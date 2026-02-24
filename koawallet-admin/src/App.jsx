@@ -9,6 +9,7 @@ import CollectionCenters from './pages/CollectionCenters';
 import PhysicalDeposits from './pages/PhysicalDeposits';
 import PaymentMethods from './pages/PaymentMethods';
 import Cashier from './pages/Cashier';
+import Treasury from './pages/Treasury';
 import './index.css';
 
 import { hasPermission } from './utils/permissions';
@@ -115,6 +116,12 @@ function App() {
         <Route path="/cashier" element={
           <ProtectedRoute isAuthenticated={isAuthenticated} role={userRole} path="/cashier">
             <Cashier />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/treasury" element={
+          <ProtectedRoute isAuthenticated={isAuthenticated} role={userRole} path="/treasury">
+            <Treasury />
           </ProtectedRoute>
         } />
 
