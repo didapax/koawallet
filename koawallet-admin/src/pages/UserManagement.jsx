@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
-import { Users, Search, Plus, Edit2, Shield, Ban, CheckCircle, X, ChevronLeft, Loader2, Save, MapPin, ClipboardList, CreditCard, TrendingUp } from 'lucide-react';
+import { Users, Search, Plus, Edit2, Ban, CheckCircle, X, ChevronLeft, Loader2, Save, XCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import Sidebar from '../components/Sidebar';
 
 const API_URL = 'http://localhost:3000';
 
@@ -25,6 +26,12 @@ const UserManagement = () => {
     const [passwordLoading, setPasswordLoading] = useState(false);
     const [passwordError, setPasswordError] = useState('');
     const [passwordSuccess, setPasswordSuccess] = useState('');
+
+    const handleLogout = () => {
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_role');
+        window.location.href = '/login';
+    };
 
     useEffect(() => {
         fetchUsers();
@@ -110,24 +117,7 @@ const UserManagement = () => {
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-dark)' }}>
-            {/* Sidebar simplified */}
-            <div className="glass-card" style={{ width: '80px', margin: '20px', padding: '30px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-                <Link to="/" style={{ color: 'var(--text-muted)' }}><LayoutDashboardIcon /></Link>
-                <div style={{ color: 'var(--primary)' }}><Users size={24} /></div>
-                <Link to="/collection-centers" style={{ color: 'var(--text-muted)' }}><MapPin size={24} /></Link>
-                <Link to="/physical-deposits" style={{ color: 'var(--text-muted)' }}><TrendingUp size={24} /></Link>
-                <Link to="/cashier" style={{ color: 'var(--text-muted)' }}><ClipboardList size={24} /></Link>
-                {userRole === 'admin' && (
-                    <Link to="/payment-methods" style={{ color: 'var(--text-muted)' }}><CreditCard size={24} /></Link>
-                )}
-                <button
-                    onClick={() => setShowPasswordModal(true)}
-                    style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', marginTop: 'auto' }}
-                    title="Cambiar Contraseña"
-                >
-                    <LockIcon size={24} />
-                </button>
-            </div>
+            <Sidebar onLogout={handleLogout} />
 
             <div style={{ flex: 1, padding: '40px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
@@ -381,12 +371,5 @@ const UserManagement = () => {
     );
 };
 
-const LayoutDashboardIcon = () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
-);
-
-const LockIcon = ({ size = 24 }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-);
 
 export default UserManagement;

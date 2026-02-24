@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
-import { CreditCard, Plus, Edit2, Trash2, CheckCircle, X, ChevronLeft, Loader2, Save, Info } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { CreditCard, Plus, Edit2, Trash2, X, ChevronLeft, Loader2, Save } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import Sidebar from '../components/Sidebar';
 
 const API_URL = 'http://localhost:3000';
 
 const PaymentMethods = () => {
+    const navigate = useNavigate();
     const [methods, setMethods] = useState([]);
     const [loading, setLoading] = useState(true);
     const [editingMethod, setEditingMethod] = useState(null);
@@ -75,13 +77,15 @@ const PaymentMethods = () => {
         }
     };
 
+    const handleLogout = () => {
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_role');
+        navigate('/login');
+    };
+
     return (
         <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-dark)' }}>
-            <div className="glass-card" style={{ width: '80px', margin: '20px', padding: '30px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-                <Link to="/" style={{ color: 'var(--text-muted)' }}><LayoutDashboardIcon /></Link>
-                <Link to="/users" style={{ color: 'var(--text-muted)' }}><UsersIcon /></Link>
-                <div style={{ color: 'var(--primary)' }}><CreditCard size={24} /></div>
-            </div>
+            <Sidebar onLogout={handleLogout} />
 
             <div style={{ flex: 1, padding: '40px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
@@ -242,13 +246,5 @@ const PaymentMethods = () => {
         </div>
     );
 };
-
-const LayoutDashboardIcon = () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
-);
-
-const UsersIcon = () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-);
 
 export default PaymentMethods;

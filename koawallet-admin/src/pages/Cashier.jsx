@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
-import { ClipboardList, CheckCircle, XCircle, X, Eye, ChevronLeft, Loader2, MessageSquare, ExternalLink, Image as ImageIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { ClipboardList, CheckCircle, XCircle, X, Eye, Loader2, MessageSquare, Image as ImageIcon, ChevronLeft } from 'lucide-react';
 import axios from 'axios';
+import Sidebar from '../components/Sidebar';
 
 const API_URL = 'http://localhost:3000';
 
@@ -16,6 +17,12 @@ const Cashier = () => {
 
     const token = localStorage.getItem('admin_token');
     const axiosConfig = { headers: { Authorization: `Bearer ${token}` } };
+
+    const handleLogout = () => {
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_role');
+        window.location.href = '/login';
+    };
 
     useEffect(() => {
         fetchQueue();
@@ -53,11 +60,7 @@ const Cashier = () => {
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-dark)' }}>
-            <div className="glass-card" style={{ width: '80px', margin: '20px', padding: '30px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-                <Link to="/" style={{ color: 'var(--text-muted)' }}><LayoutDashboardIcon /></Link>
-                <div style={{ color: 'var(--primary)' }}><ClipboardList size={24} /></div>
-                <Link to="/users" style={{ color: 'var(--text-muted)' }}><UsersIcon /></Link>
-            </div>
+            <Sidebar onLogout={handleLogout} />
 
             <div style={{ flex: 1, padding: '40px' }}>
                 <div style={{ marginBottom: '40px' }}>

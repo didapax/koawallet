@@ -3,7 +3,6 @@ import { motion as Motion, AnimatePresence } from 'framer-motion';
 import {
     Plus,
     Search,
-    Filter,
     CheckCircle,
     XCircle,
     Clock,
@@ -13,10 +12,6 @@ import {
     AlertCircle,
     ChevronDown,
     Info,
-    LayoutDashboard,
-    Users as UsersIcon,
-    MapPin,
-    Settings as SettingsIcon,
     ChevronLeft,
     Loader2,
     Save,
@@ -24,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import Sidebar from '../components/Sidebar';
 
 const API_BASE = 'http://localhost:3000';
 
@@ -153,9 +149,14 @@ const PhysicalDeposits = () => {
     const [centers, setCenters] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
 
-    const userRole = localStorage.getItem('admin_role') || 'user';
     const token = localStorage.getItem('admin_token');
     const axiosConfig = React.useMemo(() => ({ headers: { Authorization: `Bearer ${token}` } }), [token]);
+
+    const handleLogout = () => {
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_role');
+        window.location.href = '/login';
+    };
 
     const [formData, setFormData] = useState({
         userId: '',
@@ -244,18 +245,7 @@ const PhysicalDeposits = () => {
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-dark)' }}>
-            {/* Sidebar */}
-            <div className="glass-card" style={{ width: '80px', margin: '20px', padding: '30px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-                <Link to="/" style={{ color: 'var(--text-muted)' }}><LayoutDashboard /></Link>
-                {['admin', 'oficinista'].includes(userRole) && (
-                    <Link to="/users" style={{ color: 'var(--text-muted)' }}><UsersIcon /></Link>
-                )}
-                <Link to="/collection-centers" style={{ color: 'var(--text-muted)' }}><MapPin /></Link>
-                <div style={{ color: 'var(--primary)' }}><TrendingUpIcon /></div>
-                {userRole === 'admin' && (
-                    <Link to="/config" style={{ color: 'var(--text-muted)', marginTop: 'auto' }}><SettingsIcon /></Link>
-                )}
-            </div>
+            <Sidebar onLogout={handleLogout} />
 
             <div style={{ flex: 1, padding: '40px' }}>
                 {/* Header */}
@@ -634,4 +624,3 @@ const TrendingUpIcon = () => (
 );
 
 export default PhysicalDeposits;
-

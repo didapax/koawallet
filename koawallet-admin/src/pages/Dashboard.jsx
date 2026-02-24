@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion as Motion } from 'framer-motion';
-import { Users, LayoutDashboard, LogOut, TrendingUp, Wallet, ArrowRight, Settings, Info, MapPin, ClipboardList, CreditCard } from 'lucide-react';
+import { Users, TrendingUp, Wallet, Settings, Info, CreditCard } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import Sidebar from '../components/Sidebar';
 
 const API_URL = 'http://localhost:3000';
 
 const Dashboard = ({ onLogout }) => {
     const userRole = localStorage.getItem('admin_role') || 'user';
     const token = localStorage.getItem('admin_token');
-    const canViewUsers = userRole === 'admin' || userRole === 'oficinista';
 
     const [stats, setStats] = useState({
         totalUsers: 0,
@@ -65,105 +65,7 @@ const Dashboard = ({ onLogout }) => {
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh' }}>
-            {/* Sidebar code... skipped for brevity in target but included in replacement if needed */}
-            {/* Sidebar */}
-            <div className="glass-card" style={{
-                width: '280px',
-                margin: '20px',
-                padding: '30px 20px',
-                display: 'flex',
-                flexDirection: 'column',
-                borderRadius: '24px'
-            }}>
-                <div style={{ marginBottom: '40px', padding: '0 10px' }}>
-                    <h2 className="gold-text">KoaWallet</h2>
-                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ADMIN PANEL</p>
-                </div>
-
-                <nav style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--primary)', background: 'var(--primary-glow)', borderRadius: '12px', marginBottom: '10px' }}>
-                        <LayoutDashboard size={20} />
-                        <span style={{ fontWeight: 500 }}>Dashboard</span>
-                    </div>
-
-                    {canViewUsers && (
-                        <Link to="/users" style={{ textDecoration: 'none', color: 'inherit' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
-                                <Users size={20} />
-                                <span style={{ fontWeight: 500 }}>Usuarios</span>
-                            </div>
-                        </Link>
-                    )}
-
-                    {userRole === 'admin' && (
-                        <Link to="/config" style={{ textDecoration: 'none', color: 'inherit' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
-                                <Settings size={20} />
-                                <span style={{ fontWeight: 500 }}>Configuración</span>
-                            </div>
-                        </Link>
-                    )}
-
-                    <Link to="/collection-centers" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
-                            <MapPin size={20} />
-                            <span style={{ fontWeight: 500 }}>Centros de Acopio</span>
-                        </div>
-                    </Link>
-
-                    <Link to="/physical-deposits" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
-                            <TrendingUp size={20} />
-                            <span style={{ fontWeight: 500 }}>Depósitos Físicos</span>
-                        </div>
-                    </Link>
-
-                    <Link to="/cashier" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
-                            <ClipboardList size={20} />
-                            <span style={{ fontWeight: 500 }}>Cola del Cajero</span>
-                        </div>
-                    </Link>
-
-                    {userRole === 'admin' && (
-                        <Link to="/payment-methods" style={{ textDecoration: 'none', color: 'inherit' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
-                                <CreditCard size={20} />
-                                <span style={{ fontWeight: 500 }}>Métodos de Pago</span>
-                            </div>
-                        </Link>
-                    )}
-
-                    {userRole === 'admin' && (
-                        <Link to="/treasury" style={{ textDecoration: 'none', color: 'inherit' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
-                                <Wallet size={20} />
-                                <span style={{ fontWeight: 500 }}>Tesorería</span>
-                            </div>
-                        </Link>
-                    )}
-                </nav>
-
-                <button
-                    onClick={onLogout}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '12px 15px',
-                        color: '#ff4b4b',
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        borderRadius: '12px',
-                        marginTop: 'auto'
-                    }}
-                    className="logout-btn"
-                >
-                    <LogOut size={20} />
-                    <span style={{ fontWeight: 500 }}>Cerrar Sesión</span>
-                </button>
-            </div>
+            <Sidebar onLogout={onLogout} />
 
             {/* Main Content */}
             <div style={{ flex: 1, padding: '40px' }}>
@@ -195,13 +97,13 @@ const Dashboard = ({ onLogout }) => {
                     />
                     <StatCard
                         title="Valor Reserva"
-                        value={loading ? "..." : `~$${stats.reserve.totalReserveValueUSD.toLocaleString()}`}
+                        value={loading ? "..." : `~$${stats.reserve.totalReserveValueUSD.toLocaleString()} `}
                         icon={<TrendingUp size={24} />}
                         trend="Respaldo físico total"
                     />
                     <StatCard
                         title="Tesorería (Fees)"
-                        value={loading ? "..." : `$${stats.treasury.totalFeesUSD.toLocaleString()}`}
+                        value={loading ? "..." : `$${stats.treasury.totalFeesUSD.toLocaleString()} `}
                         icon={<CreditCard size={24} />}
                         trend="Comisiones acumuladas (USD)"
                     />
@@ -228,14 +130,14 @@ const Dashboard = ({ onLogout }) => {
             </div>
 
             <style>{`
-        .nav-item:hover {
-          background: rgba(255, 255, 255, 0.05);
-          color: #fff !important;
-        }
+    .nav-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff !important;
+}
         .logout-btn:hover {
-          background: rgba(255, 75, 75, 0.1);
-        }
-      `}</style>
+    background: rgba(255, 75, 75, 0.1);
+}
+`}</style>
         </div>
     );
 };

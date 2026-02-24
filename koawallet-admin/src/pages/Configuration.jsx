@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion as Motion } from 'framer-motion';
-import { Settings, Save, RefreshCcw, DollarSign, Activity, Calendar, LayoutDashboard, LogOut, Users, Info, Wallet, MapPin } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Settings, Save, RefreshCcw, DollarSign, Activity, Calendar, Info, Wallet } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import Sidebar from '../components/Sidebar';
 
 const API_URL = 'http://localhost:3000';
 
 const Configuration = () => {
     const navigate = useNavigate();
-    const userRole = localStorage.getItem('admin_role') || 'user';
     const token = localStorage.getItem('admin_token');
 
     const [config, setConfig] = useState({
@@ -159,75 +159,8 @@ const Configuration = () => {
     );
 
     return (
-        <div style={{ display: 'flex', minHeight: '100vh' }}>
-            {/* Sidebar */}
-            <div className="glass-card" style={{
-                width: '280px',
-                margin: '20px',
-                padding: '30px 20px',
-                display: 'flex',
-                flexDirection: 'column',
-                borderRadius: '24px'
-            }}>
-                <div style={{ marginBottom: '40px', padding: '0 10px' }}>
-                    <h2 className="gold-text">KoaWallet</h2>
-                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ADMIN PANEL</p>
-                </div>
-
-                <nav style={{ flex: 1 }}>
-                    <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px' }} className="nav-item">
-                            <LayoutDashboard size={20} />
-                            <span style={{ fontWeight: 500 }}>Dashboard</span>
-                        </div>
-                    </Link>
-
-                    {(userRole === 'admin' || userRole === 'oficinista') && (
-                        <Link to="/users" style={{ textDecoration: 'none', color: 'inherit' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px' }} className="nav-item">
-                                <Users size={20} />
-                                <span style={{ fontWeight: 500 }}>Usuarios</span>
-                            </div>
-                        </Link>
-                    )}
-
-                    {userRole === 'admin' && (
-                        <>
-                            <Link to="/collection-centers" style={{ textDecoration: 'none', color: 'inherit' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px' }} className="nav-item">
-                                    <MapPin size={20} />
-                                    <span style={{ fontWeight: 500 }}>Centros de Acopio</span>
-                                </div>
-                            </Link>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--primary)', background: 'var(--primary-glow)', borderRadius: '12px', marginBottom: '10px' }}>
-                                <Settings size={20} />
-                                <span style={{ fontWeight: 500 }}>Configuración</span>
-                            </div>
-                        </>
-                    )}
-                </nav>
-
-                <button
-                    onClick={handleLogout}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '12px 15px',
-                        color: '#ff4b4b',
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        borderRadius: '12px',
-                        marginTop: 'auto'
-                    }}
-                    className="logout-btn"
-                >
-                    <LogOut size={20} />
-                    <span style={{ fontWeight: 500 }}>Cerrar Sesión</span>
-                </button>
-            </div>
+        <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-dark)' }}>
+            <Sidebar onLogout={handleLogout} />
 
             {/* Main Content */}
             <div style={{ flex: 1, padding: '40px' }}>
@@ -324,7 +257,7 @@ const Configuration = () => {
                         </form>
                     </div>
 
-                    {/* Referencia Zila Labs */}
+                    {/* Referencia Gemini */}
                     <div className="glass-card" style={{ padding: '30px', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '25px' }}>
                             <div style={{ padding: '8px', background: 'var(--primary-glow)', borderRadius: '8px', color: 'var(--primary)' }}>

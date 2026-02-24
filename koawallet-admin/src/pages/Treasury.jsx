@@ -2,24 +2,19 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import {
-    Users,
-    LayoutDashboard,
-    LogOut,
-    TrendingUp,
-    Wallet,
-    Settings,
-    MapPin,
-    ClipboardList,
-    CreditCard,
-    Plus,
     History,
     ArrowUpCircle,
     Loader2,
     AlertCircle,
     X,
-    Briefcase
+    Briefcase,
+    Plus,
+    Wallet,
+    TrendingUp,
+    CreditCard
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import Sidebar from '../components/Sidebar';
 
 const Treasury = () => {
     const navigate = useNavigate();
@@ -36,16 +31,7 @@ const Treasury = () => {
     const [reference, setReference] = useState('');
 
     const token = localStorage.getItem('admin_token');
-    const userRole = localStorage.getItem('admin_role') || 'user';
     const API_URL = 'http://localhost:3000';
-
-    const canViewUsers = userRole === 'admin' || userRole === 'oficinista';
-
-    const handleLogout = () => {
-        localStorage.removeItem('admin_token');
-        localStorage.removeItem('admin_role');
-        navigate('/login');
-    };
 
     const fetchData = useCallback(async () => {
         try {
@@ -97,6 +83,12 @@ const Treasury = () => {
         }
     };
 
+    const handleLogout = () => {
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_role');
+        navigate('/login');
+    };
+
     if (loading && !stats) {
         return (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--bg-dark)' }}>
@@ -107,107 +99,7 @@ const Treasury = () => {
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-dark)' }}>
-            {/* Sidebar - Same as Dashboard.jsx */}
-            <div className="glass-card" style={{
-                width: '280px',
-                margin: '20px',
-                padding: '30px 20px',
-                display: 'flex',
-                flexDirection: 'column',
-                borderRadius: '24px',
-                position: 'sticky',
-                top: '20px',
-                height: 'calc(100vh - 40px)'
-            }}>
-                <div style={{ marginBottom: '40px', padding: '0 10px' }}>
-                    <h2 className="gold-text">KoaWallet</h2>
-                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ADMIN PANEL</p>
-                </div>
-
-                <nav style={{ flex: 1 }}>
-                    <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
-                            <LayoutDashboard size={20} />
-                            <span style={{ fontWeight: 500 }}>Dashboard</span>
-                        </div>
-                    </Link>
-
-                    {canViewUsers && (
-                        <Link to="/users" style={{ textDecoration: 'none', color: 'inherit' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
-                                <Users size={20} />
-                                <span style={{ fontWeight: 500 }}>Usuarios</span>
-                            </div>
-                        </Link>
-                    )}
-
-                    {userRole === 'admin' && (
-                        <Link to="/config" style={{ textDecoration: 'none', color: 'inherit' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
-                                <Settings size={20} />
-                                <span style={{ fontWeight: 500 }}>Configuración</span>
-                            </div>
-                        </Link>
-                    )}
-
-                    <Link to="/collection-centers" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
-                            <MapPin size={20} />
-                            <span style={{ fontWeight: 500 }}>Centros de Acopio</span>
-                        </div>
-                    </Link>
-
-                    <Link to="/physical-deposits" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
-                            <TrendingUp size={20} />
-                            <span style={{ fontWeight: 500 }}>Depósitos Físicos</span>
-                        </div>
-                    </Link>
-
-                    <Link to="/cashier" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
-                            <ClipboardList size={20} />
-                            <span style={{ fontWeight: 500 }}>Cola del Cajero</span>
-                        </div>
-                    </Link>
-
-                    {userRole === 'admin' && (
-                        <Link to="/payment-methods" style={{ textDecoration: 'none', color: 'inherit' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--text-muted)', borderRadius: '12px', marginBottom: '10px', transition: 'all 0.3s' }} className="nav-item">
-                                <CreditCard size={20} />
-                                <span style={{ fontWeight: 500 }}>Métodos de Pago</span>
-                            </div>
-                        </Link>
-                    )}
-
-                    {userRole === 'admin' && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', color: 'var(--primary)', background: 'var(--primary-glow)', borderRadius: '12px', marginBottom: '10px' }}>
-                            <Wallet size={20} />
-                            <span style={{ fontWeight: 500 }}>Tesorería</span>
-                        </div>
-                    )}
-                </nav>
-
-                <button
-                    onClick={handleLogout}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '12px 15px',
-                        color: '#ff4b4b',
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        borderRadius: '12px',
-                        marginTop: 'auto'
-                    }}
-                    className="logout-btn"
-                >
-                    <LogOut size={20} />
-                    <span style={{ fontWeight: 500 }}>Cerrar Sesión</span>
-                </button>
-            </div>
+            <Sidebar onLogout={handleLogout} />
 
             {/* Main Content */}
             <div style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
@@ -255,21 +147,21 @@ const Treasury = () => {
                     }}>
                         <StatCard
                             title="Ganancias Históricas"
-                            value={`$${stats?.totalFees.toFixed(2)}`}
+                            value={`$${stats?.totalFees?.toFixed(2) || '0.00'}`}
                             icon={<History size={24} />}
                             description="Suma de todas las comisiones"
                             delay={0.1}
                         />
                         <StatCard
                             title="Retiros Realizados"
-                            value={`$${stats?.totalWithdrawals.toFixed(2)}`}
+                            value={`$${stats?.totalWithdrawals?.toFixed(2) || '0.00'}`}
                             icon={<ArrowUpCircle size={24} />}
                             description="Gastos y retiro de utilidades"
                             delay={0.2}
                         />
                         <StatCard
                             title="Saldo en Caja"
-                            value={`$${stats?.availableBalance.toFixed(2)}`}
+                            value={`$${stats?.availableBalance?.toFixed(2) || '0.00'}`}
                             icon={<Wallet size={24} />}
                             description="Disponible para retirar"
                             delay={0.3}
@@ -339,7 +231,7 @@ const Treasury = () => {
                         </div>
                     </div>
 
-                    {/* Distribution Section (Repaired from previous version) */}
+                    {/* Distribution Section */}
                     <div style={{ marginTop: '2rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
                         <Motion.div
                             className="glass-card"
@@ -356,12 +248,12 @@ const Treasury = () => {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
                                         <span style={{ color: 'var(--text-muted)' }}>Retirado acumulado</span>
-                                        <span>{((stats?.totalWithdrawals / stats?.totalFees) * 100 || 0).toFixed(1)}%</span>
+                                        <span>{stats?.totalFees ? ((stats.totalWithdrawals / stats.totalFees) * 100).toFixed(1) : '0.0'}%</span>
                                     </div>
                                     <div style={{ width: '100%', height: '8px', background: 'rgba(0,0,0,0.3)', borderRadius: '4px', overflow: 'hidden' }}>
                                         <Motion.div
                                             initial={{ width: 0 }}
-                                            animate={{ width: `${(stats?.totalWithdrawals / stats?.totalFees) * 100 || 0}%` }}
+                                            animate={{ width: `${stats?.totalFees ? (stats.totalWithdrawals / stats.totalFees) * 100 : 0}%` }}
                                             style={{ height: '100%', background: 'linear-gradient(90deg, var(--secondary), var(--primary))' }}
                                         />
                                     </div>
@@ -458,7 +350,7 @@ const Treasury = () => {
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', padding: '0 4px', textTransform: 'uppercase' }}>
                                         <span style={{ color: 'var(--text-muted)' }}>Saldo en caja</span>
-                                        <span style={{ color: 'var(--primary)' }}>${stats?.availableBalance.toFixed(2)} USD</span>
+                                        <span style={{ color: 'var(--primary)' }}>${stats?.availableBalance?.toFixed(2) || '0.00'} USD</span>
                                     </div>
                                 </div>
 
@@ -509,14 +401,14 @@ const Treasury = () => {
             </AnimatePresence>
 
             <style>{`
-        .nav-item:hover {
-          background: rgba(255, 255, 255, 0.05);
-          color: #fff !important;
-        }
-        .logout-btn:hover {
-          background: rgba(255, 75, 75, 0.1);
-        }
-      `}</style>
+                .nav-item:hover {
+                    background: rgba(255, 255, 255, 0.05);
+                    color: #fff !important;
+                }
+                .logout-btn:hover {
+                    background: rgba(255, 75, 75, 0.1);
+                }
+            `}</style>
         </div>
     );
 };
@@ -536,7 +428,7 @@ const StatCard = ({ title, value, icon, description, delay, highlight }) => (
             flexDirection: 'column',
             justifyContent: 'space-between',
             borderLeft: highlight ? '4px solid var(--primary)' : '1px solid var(--glass-border)',
-            background: highlight ? 'linear-gradient(135deg, rgba(212, 175, 55, 0.05) 0%, rgba(0,0,0,0) 100%)' : 'var(--bg-card)',
+            background: highlight ? 'linear-gradient(135deg, rgba(212, 175, 55, 0.05) 0%, rgba(0,0,0,0) 100%)' : 'rgba(255,255,255,0.02)',
             minHeight: '160px'
         }}
     >
