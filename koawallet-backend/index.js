@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const cron = require('node-cron');
 require('dotenv').config();
 
 const prisma = require('./db');
@@ -1343,6 +1344,107 @@ app.put('/admin/physical-deposits/:id/verify', adminMiddleware, async (req, res)
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ─── TASA DE MANTENIMIENTO (CRON) ───────────────────────────────────────────
+const processMaintenanceFees = async () => {
+  console.log('[CRON] Iniciando proceso de cobro de tasas de mantenimiento...');
+  try {
+    const config = await getSystemConfig();
+    const maintenanceFeeUSD = config.maintenanceFee;
+
+    // Obtenemos el precio de venta (sellPrice) porque es lo que le "cobramos" al usuario
+    const cacaoPriceUSD = config.sellPrice;
+
+    if (maintenanceFeeUSD <= 0 || cacaoPriceUSD <= 0) {
+      console.log('[CRON] Tasa de mantenimiento o precio de cacao inválidos. Cancelando.');
+      return;
+    }
+
+    const gramsToCharge = parseFloat((maintenanceFeeUSD / cacaoPriceUSD).toFixed(4));
+    console.log(`[CRON] Tasa: $${maintenanceFeeUSD} USD | Precio: $${cacaoPriceUSD} USD/g | Cobro: ${gramsToCharge}g`);
+
+    // Buscamos usuarios que:
+    // 1. Sean de rol 'user' (opcional, podrías cobrar a todos o solo a ciertos roles)
+    // 2. Hayan pasado 30 días o más desde su lastMaintenanceCharge 
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const usersToCharge = await prisma.user.findMany({
+      where: {
+        role: 'user',
+        status: 'active',
+        cacaoBalance: { gt: 0 },
+        OR: [
+          { lastMaintenanceCharge: { lte: thirtyDaysAgo } },
+          { lastMaintenanceCharge: null }
+        ]
+      }
+    });
+
+    console.log(`[CRON] Encontrados ${usersToCharge.length} usuarios para cobrar.`);
+
+    for (const user of usersToCharge) {
+      try {
+        // Verificar saldo suficiente
+        if (user.cacaoBalance < gramsToCharge) {
+          console.log(`[CRON] Usuario ${user.email} con saldo insuficiente (${user.cacaoBalance}g).`);
+          // Podríamos decidir si cobrar lo que tenga o marcarlo. Por ahora lo saltamos.
+          continue;
+        }
+
+        await prisma.$transaction([
+          // 1. Aplicar descuento al usuario
+          prisma.user.update({
+            where: { id: user.id },
+            data: {
+              cacaoBalance: { decrement: gramsToCharge },
+              lastMaintenanceCharge: new Date()
+            }
+          }),
+          // 2. Registrar transacción
+          prisma.transaction.create({
+            data: {
+              userId: user.id,
+              type: 'MAINTENANCE_FEE',
+              status: 'COMPLETED',
+              amount: gramsToCharge,
+              gramsAmount: gramsToCharge,
+              amountUSD: maintenanceFeeUSD,
+              cacaoPriceUSD: cacaoPriceUSD,
+              priceAt: cacaoPriceUSD,
+              notes: `Cobro de tasa de mantenimiento mensual ($${maintenanceFeeUSD} USD)`
+            }
+          }),
+          // 3. Actualizar Reserva Global (disminuir tokens emitidos)
+          prisma.globalReserve.update({
+            where: { id: 1 },
+            data: { tokensIssued: { decrement: gramsToCharge } }
+          })
+        ]);
+        console.log(`[CRON] Cobro exitoso para ${user.email}`);
+      } catch (err) {
+        console.error(`[CRON] Error cobrando a ${user.email}:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error('[CRON] Error general en processMaintenanceFees:', err.message);
+  }
+};
+
+// Endpoint extra para disparar el proceso manualmente (solo admin)
+app.post('/admin/test-maintenance-fee', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await processMaintenanceFees();
+    res.json({ message: 'Proceso de cobro de mantenimiento ejecutado localmente. Revisar consola para detalles.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Programar el cron para que corra todos los días a las 00:00
+cron.schedule('0 0 * * *', () => {
+  processMaintenanceFees();
 });
 
 // ─── START ─────────────────────────────────────────────────────────────────────

@@ -25,6 +25,7 @@ model User {
   depositsAsInspector PhysicalDeposit[] @relation("InspectorDeposits")
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
+  lastMaintenanceCharge DateTime?     @default(now())
 }
 
 model BankOption {
