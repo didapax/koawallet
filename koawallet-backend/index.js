@@ -862,7 +862,8 @@ app.get('/admin/config', adminMiddleware, async (req, res) => {
 
     // Solo consultar Gemini si se solicita explícitamente vía ?refresh=true
     if (refresh === 'true') {
-      const geminiData = await getGeminiPrice();
+      const { manualMarketPrice } = req.query;
+      const geminiData = await getGeminiPrice(manualMarketPrice ? parseFloat(manualMarketPrice) : config.marketTonPrice);
 
       // Actualizar configuración en la DB si recibimos datos de Gemini
       if (geminiData) {
@@ -899,7 +900,7 @@ app.get('/admin/config', adminMiddleware, async (req, res) => {
 
 app.put('/admin/config', adminMiddleware, async (req, res) => {
   try {
-    const { buyPrice, sellPrice, maintenanceFee, networkFee, usdVesRate } = req.body;
+    const { buyPrice, sellPrice, maintenanceFee, networkFee, usdVesRate, marketTonPrice } = req.body;
     const updated = await prisma.systemConfig.update({
       where: { id: 1 },
       data: {
@@ -908,6 +909,7 @@ app.put('/admin/config', adminMiddleware, async (req, res) => {
         maintenanceFee: maintenanceFee !== undefined ? parseFloat(maintenanceFee) : undefined,
         networkFee: networkFee !== undefined ? parseFloat(networkFee) : undefined,
         usdVesRate: usdVesRate !== undefined ? parseFloat(usdVesRate) : undefined,
+        marketTonPrice: marketTonPrice !== undefined ? parseFloat(marketTonPrice) : undefined,
       }
     });
     res.json(updated);

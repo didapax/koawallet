@@ -1,26 +1,25 @@
 const axios = require('axios');
 require('dotenv').config();
 
-const getCacaoPrice = async () => {
+const getCacaoPrice = async (manualMarketPrice = null) => {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     const model = "gemini-2.5-flash"; // Modelo estable en 2026
     const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
 
-    const prompt = `Actúa como un experto consultor de negocios internacional con especialidad en el mercado de commodities, específicamente el CACAO.
-    Tu tarea es determinar el precio de referencia actual del cacao  y fijar los precios estratégicos para Koawallet.
-    Extraer el precio actual del Cacao (Cocoa) usando como referencia la información de: https://github.com/didapax/koawallet/blob/main/cocoaprice.txt
+    const marketPriceTon = manualMarketPrice || 0;
 
-    REGLAS DE CÁLCULO:
-    1. "marketPriceTon": Es el precio actual de referencia del cacao por tonelada métrica en USD.
-    2. "buyPriceGram": Es el precio al que Koawallet COMPRA el cacao a sus usuarios por cada gramo.
-    3. "sellPriceGram": Es el precio al que Koawallet VENDE el cacao a sus usuarios por cada gramo.
+    const prompt = `Actúa como un Chief Financial Officer (CFO) experto en el mercado internacional de commodities (Cacao).
+    Calcula los precios de COMPRA y VENTA para Koawallet basándote en:
+    - Precio de Mercado Internacional ($P_{market}$): ${marketPriceTon} USD/Ton.
+    - 1 Tonelada = 1,000,000 gramos.
+    - Considera Spread de Operación, Almacenamiento y Merma por humedad.
 
-    SALIDA REQUERIDA:
-    Devuelve ÚNICAMENTE un objeto JSON con esta estructura, sin texto adicional, sin saltos de línea innecesarios y sin bloques de código Markdown:
+    REGLA MANDATORIA: Devuelve ÚNICAMENTE un objeto JSON. NO incluyas introducciones, explicaciones, ni bloques de código markdown.
 
+    ESTRUCTURA DE SALIDA ESPERADA:
     {
-    "marketPriceTon": 0.0,
+    "marketPriceTon": ${marketPriceTon},
     "buyPriceGram": 0.0,
     "sellPriceGram": 0.0
     }`;
@@ -31,10 +30,16 @@ const getCacaoPrice = async () => {
       }]
     });
 
-    const text = response.data.candidates[0].content.parts[0].text;
+    let text = response.data.candidates[0].content.parts[0].text;
 
-    // Limpiar posibles bloques de código markdown
-    const jsonStr = text.replace(/```json|```/g, "").trim();
+    // Limpiar posibles bloques de código markdown o prefijos conversacionales
+    // Intentar extraer el primer objeto JSON encontrado { ... }
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("No se encontró un objeto JSON válido en la respuesta de Gemini");
+    }
+
+    const jsonStr = jsonMatch[0].trim();
     const data = JSON.parse(jsonStr);
 
     return {

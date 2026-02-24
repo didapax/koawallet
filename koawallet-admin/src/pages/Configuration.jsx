@@ -34,12 +34,13 @@ const Configuration = () => {
     const [injecting, setInjecting] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
 
-    const fetchConfig = useCallback(async (refresh = false) => {
+    const fetchConfig = useCallback(async (refresh = false, manualPrice = null) => {
         if (refresh) setRefreshing(true);
         else setLoading(true);
 
         try {
-            const url = refresh ? `${API_URL}/admin/config?refresh=true` : `${API_URL}/admin/config`;
+            const priceToUse = manualPrice !== null ? manualPrice : config.marketTonPrice;
+            const url = refresh ? `${API_URL}/admin/config?refresh=true&manualMarketPrice=${priceToUse}` : `${API_URL}/admin/config`;
             const response = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -92,7 +93,8 @@ const Configuration = () => {
                     sellPrice: parseFloat(config.sellPrice),
                     maintenanceFee: parseFloat(config.maintenanceFee),
                     networkFee: parseFloat(config.networkFee),
-                    usdVesRate: parseFloat(config.usdVesRate)
+                    usdVesRate: parseFloat(config.usdVesRate),
+                    marketTonPrice: parseFloat(config.marketTonPrice)
                 })
             });
 
@@ -268,10 +270,34 @@ const Configuration = () => {
 
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'center' }}>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '5px' }}>Precio Referencia Mundial</p>
-                            <h2 style={{ fontSize: '2.5rem', margin: '5px 0' }} className="gold-text">
-                                ${config.currentMarketTonPrice ? config.currentMarketTonPrice.toLocaleString() : '--.--'}
-                            </h2>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '15px' }}>USD / Tonelada</p>
+                            <div className="input-group" style={{
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                borderRadius: '12px',
+                                padding: '0 15px',
+                                margin: '5px auto',
+                                maxWidth: '200px',
+                                display: 'flex',
+                                alignItems: 'center'
+                            }}>
+                                <DollarSign size={20} color="var(--primary)" />
+                                <input
+                                    type="number"
+                                    value={config.marketTonPrice || ''}
+                                    onChange={(e) => setConfig({ ...config, marketTonPrice: e.target.value })}
+                                    style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: 'var(--primary)',
+                                        padding: '12px 10px',
+                                        width: '100%',
+                                        outline: 'none',
+                                        fontSize: '1.5rem',
+                                        fontWeight: 'bold',
+                                        textAlign: 'center'
+                                    }}
+                                />
+                            </div>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '15px' }}>USD / Tonelada internacional</p>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
                                 <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '10px' }}>
@@ -296,7 +322,7 @@ const Configuration = () => {
                             </div>
 
                             <button
-                                onClick={() => fetchConfig(true)}
+                                onClick={() => fetchConfig(true, config.marketTonPrice)}
                                 disabled={refreshing}
                                 style={{
                                     marginTop: 'auto',
