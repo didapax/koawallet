@@ -266,6 +266,11 @@ export default function DepositWithdrawModal({ visible, type, userBalance = 0, o
         }
 
         const grams = parseFloat(gramsAmount);
+        if (grams < 1000) {
+            showAlert('error', 'Monto insuficiente', 'El monto mínimo para realizar una venta o retiro es de 1000 gramos.');
+            return;
+        }
+
         if (grams > userBalance) {
             showAlert('warning', 'Saldo insuficiente', `Tu saldo disponible es de ${userBalance.toFixed(4)}g. No puedes vender ${grams.toFixed(4)}g.`);
             return;
@@ -307,8 +312,23 @@ export default function DepositWithdrawModal({ visible, type, userBalance = 0, o
         } else {
             if (step === 2) { setWithdrawPayMethod(null); setStep(1); }
             else if (step === 3) {
-                if (addingAccount) { setAddingAccount(false); }
-                else { setSelectedUserMethod(null); setStep(2); }
+                if (addingAccount) {
+                    // If we were adding an account, cancel and show existing (if any)
+                    setAddingAccount(false);
+                    if (withdrawPayMethod) {
+                        const existing = userMethods.find(um => um.paymentMethodId === withdrawPayMethod.id);
+                        setSelectedUserMethod(existing || null);
+                    }
+                } else {
+                    // Going back from amount entry to account confirmation:
+                    // Re-find the saved account so step 2 shows it correctly
+                    setAddingAccount(false);
+                    if (withdrawPayMethod) {
+                        const existing = userMethods.find(um => um.paymentMethodId === withdrawPayMethod.id);
+                        setSelectedUserMethod(existing || null);
+                    }
+                    setStep(2);
+                }
             }
             else { setStep(step - 1); }
         }
@@ -837,7 +857,7 @@ export default function DepositWithdrawModal({ visible, type, userBalance = 0, o
                                 </View>
                                 <TextInput
                                     style={styles.amountInput}
-                                    placeholder="Ej: 250.00"
+                                    placeholder="Mín: 1000.00"
                                     placeholderTextColor={Colors.textMuted}
                                     value={gramsAmount}
                                     onChangeText={setGramsAmount}
