@@ -355,6 +355,19 @@ app.post('/withdraw', authMiddleware, async (req, res) => {
       const cacaoPriceUSD = config.sellPrice;
       const exchangeRate = config.usdVesRate;
       const amountUSD = parseFloat((grams * cacaoPriceUSD).toFixed(2));
+      const networkFeeUSD = config.networkFee;
+
+      // La tasa se resta del monto total en la moneda del método de pago
+      const isVES = upm.paymentMethod.currency === 'VES';
+      const feeInMethodCurrency = isVES
+        ? parseFloat((networkFeeUSD * exchangeRate).toFixed(2))
+        : networkFeeUSD;
+
+      const grossFiatAmount = isVES
+        ? parseFloat((amountUSD * exchangeRate).toFixed(2))
+        : amountUSD;
+
+      const netFiatAmount = parseFloat((grossFiatAmount - feeInMethodCurrency).toFixed(2));
 
       // Bloquear gramos del usuario
       await prisma.user.update({
@@ -372,14 +385,12 @@ app.post('/withdraw', authMiddleware, async (req, res) => {
           amount: grams,
           gramsAmount: grams,
           cacaoPriceUSD,
-          exchangeRate: upm.paymentMethod.currency === 'VES' ? exchangeRate : 1,
+          exchangeRate: isVES ? exchangeRate : 1,
           amountCacao: grams,
           amountUSD,
-          fiatAmount: upm.paymentMethod.currency === 'VES'
-            ? parseFloat((amountUSD * exchangeRate).toFixed(2))
-            : amountUSD,
+          fiatAmount: netFiatAmount, // Almacenamos el monto NETO para el cajero
           userPaymentMethodId: parseInt(userPaymentMethodId),
-          notes: notes || null,
+          notes: notes ? `${notes} (Tasa Red: ${feeInMethodCurrency} ${upm.paymentMethod.currency})` : `Tasa Red: ${feeInMethodCurrency} ${upm.paymentMethod.currency}`,
           status: 'PENDING',
         }
       });
@@ -390,6 +401,9 @@ app.post('/withdraw', authMiddleware, async (req, res) => {
         transactionId: tx.id,
         gramsLocked: grams,
         estimatedUSD: amountUSD,
+        netFiatAmount: netFiatAmount,
+        networkFee: feeInMethodCurrency,
+        currency: upm.paymentMethod.currency,
         cacao: updatedUser.cacaoBalance,
         cacaoLocked: updatedUser.cacaoLocked,
       });

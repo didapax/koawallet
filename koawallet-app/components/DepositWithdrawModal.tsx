@@ -44,6 +44,7 @@ interface SystemConfig {
     buyPrice: number;
     sellPrice: number;
     usdVesRate: number;
+    networkFee: number;
 }
 
 interface Props {
@@ -136,6 +137,7 @@ export default function DepositWithdrawModal({ visible, type, userBalance = 0, o
                 buyPrice: cfgRes.data.buyPrice,
                 sellPrice: cfgRes.data.sellPrice,
                 usdVesRate: cfgRes.data.usdVesRate || 36.5,
+                networkFee: cfgRes.data.networkFee || 0.1,
             });
         } catch { }
         setLoading(false);
@@ -163,10 +165,29 @@ export default function DepositWithdrawModal({ visible, type, userBalance = 0, o
     const calcWithdrawFiat = (): string => {
         if (!withdrawPayMethod || !config) return '';
         const usd = calcWithdrawUSD();
-        if (withdrawPayMethod.currency === 'VES') {
-            return `${(usd * config.usdVesRate).toFixed(2)} Bs`;
+        if (usd <= 0) return '';
+
+        const isVES = withdrawPayMethod.currency === 'VES';
+        const feeUSD = config.networkFee;
+        const feeInMethodCurrency = isVES ? feeUSD * config.usdVesRate : feeUSD;
+
+        const grossAmount = isVES ? usd * config.usdVesRate : usd;
+        const netAmount = Math.max(0, grossAmount - feeInMethodCurrency);
+
+        if (isVES) {
+            return `${netAmount.toFixed(2)} Bs`;
         }
-        return `$${usd.toFixed(2)} ${withdrawPayMethod.currency}`;
+        return `$${netAmount.toFixed(2)} ${withdrawPayMethod.currency}`;
+    };
+
+    const getNetworkFeeDisplay = (): string => {
+        if (!withdrawPayMethod || !config) return '';
+        const isVES = withdrawPayMethod.currency === 'VES';
+        const feeUSD = config.networkFee;
+        if (isVES) {
+            return `${(feeUSD * config.usdVesRate).toFixed(2)} Bs`;
+        }
+        return `$${feeUSD.toFixed(2)} ${withdrawPayMethod.currency}`;
     };
 
     // ─── Handlers ─────────────────────────────────────────────────────────────
@@ -825,12 +846,12 @@ export default function DepositWithdrawModal({ visible, type, userBalance = 0, o
 
                                 {calcWithdrawUSD() > 0 && (
                                     <View style={styles.previewBox}>
-                                        <Text style={styles.previewLabel}>Recibirás aproximadamente</Text>
+                                        <Text style={styles.previewLabel}>Recibirás netos (luego de tasa)</Text>
                                         <Text style={styles.previewValue}>{calcWithdrawFiat()}</Text>
-                                        <Text style={styles.previewSub}>≈ ${calcWithdrawUSD().toFixed(2)} USD</Text>
+                                        <Text style={styles.previewSub}>Tasa de red: {getNetworkFeeDisplay()}</Text>
                                         {withdrawPayMethod?.currency === 'VES' && (
                                             <Text style={styles.previewFormula}>
-                                                {gramsAmount}g × ${config.sellPrice}/g × {config.usdVesRate} T/C
+                                                ({gramsAmount}g × ${config.sellPrice}/g × {config.usdVesRate} T/C) - {getNetworkFeeDisplay()} tasa
                                             </Text>
                                         )}
                                     </View>
@@ -838,6 +859,9 @@ export default function DepositWithdrawModal({ visible, type, userBalance = 0, o
 
                                 <View style={styles.warningBox}>
                                     <Text style={styles.warningText}>
+                                        ⚠️ Se aplicará una tasa de uso de red de {getNetworkFeeDisplay()} a esta transacción.
+                                    </Text>
+                                    <Text style={[styles.warningText, { marginTop: 8 }]}>
                                         ⏳ Los gramos serán bloqueados de tu wallet mientras el cajero procesa el pago. Una vez confirmado el retiro, los gramos serán descontados definitivamente.
                                     </Text>
                                 </View>

@@ -163,16 +163,35 @@ const Cashier = () => {
                                 </div>
                                 <div>
                                     <h4 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase' }}>
-                                        {selectedTx.type === 'SELL' ? 'Datos para Transferencia' : 'Datos del Pago'}
+                                        {selectedTx.type === 'SELL' ? 'Detalles de Transferencia' : 'Datos del Pago'}
                                     </h4>
                                     <div style={{ padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px' }}>
-                                        <p style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
-                                            {selectedTx.fiatAmount} {selectedTx.paymentMethod?.currency || selectedTx.userPaymentMethod?.paymentMethod?.currency}
-                                        </p>
+                                        {selectedTx.type === 'SELL' ? (
+                                            <div style={{ marginBottom: '10px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '5px' }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>Monto Bruto:</span>
+                                                    <span>${selectedTx.amountUSD?.toFixed(2)} USD</span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '5px', color: '#ff4b4b' }}>
+                                                    <span>Tasa Red:</span>
+                                                    <span>- {(selectedTx.amountCacao * selectedTx.cacaoPriceUSD * (selectedTx.exchangeRate || 1) - selectedTx.fiatAmount).toFixed(2)} {selectedTx.userPaymentMethod?.paymentMethod?.currency}</span>
+                                                </div>
+                                                <div style={{ borderTop: '1px solid var(--glass-border)', marginTop: '8px', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontWeight: 600, color: 'var(--primary)' }}>A ENVIAR NETO:</span>
+                                                    <span style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary)' }}>
+                                                        {selectedTx.fiatAmount} {selectedTx.userPaymentMethod?.paymentMethod?.currency}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
+                                                {selectedTx.fiatAmount} {selectedTx.paymentMethod?.currency || selectedTx.userPaymentMethod?.paymentMethod?.currency}
+                                            </p>
+                                        )}
 
                                         {selectedTx.type === 'SELL' && selectedTx.userPaymentMethod ? (
-                                            <div style={{ fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                                <p><strong>Método:</strong> {selectedTx.userPaymentMethod.paymentMethod.name}</p>
+                                            <div style={{ fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed var(--glass-border)' }}>
+                                                <p><strong>Método:</strong> {selectedTx.userPaymentMethod.paymentMethod.name} ({selectedTx.userPaymentMethod.paymentMethod.currency})</p>
                                                 {selectedTx.userPaymentMethod.paymentMethod.type === 'FIAT' ? (
                                                     <>
                                                         <p><strong>Banco:</strong> {selectedTx.userPaymentMethod.bankName}</p>
